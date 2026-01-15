@@ -235,6 +235,43 @@ async function handleFileUpload(file) {
 }
 
 /**
+ * Manipular exclusão de upload
+ */
+async function handleDeleteUpload(uploadId, fileName) {
+    // Confirmar exclusão
+    const confirmMessage = `Tem certeza que deseja excluir a planilha "${fileName}"?\n\nEsta ação não pode ser desfeita e todos os registros relacionados serão removidos.`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    // Mostrar loading
+    const historyContainer = document.getElementById('uploadHistory');
+    const originalContent = historyContainer.innerHTML;
+    historyContainer.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Excluindo...</div>';
+
+    try {
+        const result = await DataService.deleteUpload(uploadId);
+
+        if (result.success) {
+            showToast(`Planilha excluída com sucesso! ${result.deletedCount} registro(s) removido(s).`, 'success');
+            
+            // Recarregar histórico após 1 segundo
+            setTimeout(() => {
+                loadUploadHistory();
+            }, 1000);
+        } else {
+            showToast(`Erro ao excluir: ${result.error}`, 'error');
+            historyContainer.innerHTML = originalContent;
+        }
+    } catch (error) {
+        console.error('Erro ao excluir upload:', error);
+        showToast(`Erro ao excluir: ${error.message}`, 'error');
+        historyContainer.innerHTML = originalContent;
+    }
+}
+
+/**
  * Carregar histórico de uploads
  */
 async function loadUploadHistory() {
@@ -251,6 +288,7 @@ async function loadUploadHistory() {
         result.history.forEach(item => {
             const historyItem = document.createElement('div');
             historyItem.className = 'history-item';
+            historyItem.dataset.uploadId = item.id;
 
             const date = item.uploadedAt?.toDate ? 
                 item.uploadedAt.toDate().toLocaleString('pt-BR') : 
@@ -262,10 +300,21 @@ async function loadUploadHistory() {
                     <p>Upload em: ${date}</p>
                     <p>Por: ${item.uploadedBy || 'Desconhecido'}</p>
                 </div>
-                <div>
+                <div class="history-actions">
                     <span class="history-badge success">${item.totalRecords || 0} registros</span>
+                    <button class="btn btn-danger btn-sm btn-delete-upload" data-upload-id="${item.id}" title="Excluir esta planilha">
+                        <i class="fas fa-trash"></i> Excluir
+                    </button>
                 </div>
             `;
+
+            // Adicionar evento de clique no botão de excluir
+            const deleteBtn = historyItem.querySelector('.btn-delete-upload');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => {
+                    handleDeleteUpload(item.id, item.fileName || 'Arquivo sem nome');
+                });
+            }
 
             historyContainer.appendChild(historyItem);
         });

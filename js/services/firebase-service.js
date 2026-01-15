@@ -248,5 +248,65 @@ export class DataService {
     static generateUploadId() {
         return db.collection(this.UPLOADS_COLLECTION).doc().id;
     }
+
+    /**
+     * Excluir dados de um upload específico
+     */
+    static async deleteUpload(uploadId) {
+        try {
+            // Buscar todos os documentos com esse uploadId
+            const snapshot = await db.collection(this.COLLECTION_NAME)
+                .where('uploadId', '==', uploadId)
+                .get();
+
+            if (snapshot.empty) {
+                // Mesmo sem registros, deletar o registro do upload
+                await db.collection(this.UPLOADS_COLLECTION).doc(uploadId).delete();
+                return {
+                    success: true,
+                    deletedCount: 0
+                };
+            }
+
+            // Deletar em batches (limite de 500 por vez)
+            const batchLimit = 500;
+            let deletedCount = 0;
+            const batches = [];
+            let currentBatch = db.batch();
+            let batchCount = 0;
+
+            snapshot.forEach((doc, index) => {
+                currentBatch.delete(doc.ref);
+                batchCount++;
+                deletedCount++;
+
+                // Se atingir o limite ou for o último item, adicionar ao array de batches
+                if (batchCount >= batchLimit || index === snapshot.size - 1) {
+                    batches.push(currentBatch);
+                    if (index < snapshot.size - 1) {
+                        currentBatch = db.batch();
+                        batchCount = 0;
+                    }
+                }
+            });
+
+            // Executar todos os batches
+            await Promise.all(batches.map(batch => batch.commit()));
+
+            // Deletar o registro do upload
+            await db.collection(this.UPLOADS_COLLECTION).doc(uploadId).delete();
+
+            return {
+                success: true,
+                deletedCount: deletedCount
+            };
+        } catch (error) {
+            console.error('Erro ao excluir upload:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
 }
 

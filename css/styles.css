@@ -142,6 +142,16 @@ body {
     background-color: var(--dark-gray);
 }
 
+.btn-danger {
+    background-color: var(--error);
+    color: var(--white);
+}
+
+.btn-danger:hover {
+    background-color: #C0392B;
+    transform: translateY(-2px);
+}
+
 .btn-whatsapp {
     background-color: var(--whatsapp);
     color: var(--white);
