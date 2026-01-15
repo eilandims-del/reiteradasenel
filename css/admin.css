@@ -1,0 +1,247 @@
+/* ============================================
+   Estilos Específicos - Painel Administrativo
+   ============================================ */
+
+/* Login Section */
+.login-section {
+    max-width: 500px;
+    margin: 4rem auto;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: var(--dark-gray);
+}
+
+.form-input {
+    padding: 0.8rem;
+    border: 2px solid var(--light-gray);
+    border-radius: 5px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.error-message {
+    color: var(--error);
+    padding: 0.5rem;
+    background-color: #FFE5E5;
+    border-radius: 5px;
+    display: none;
+}
+
+.error-message.show {
+    display: block;
+}
+
+/* Upload Section */
+.upload-section {
+    margin-top: 2rem;
+}
+
+.upload-area {
+    margin-top: 1rem;
+}
+
+.drop-zone {
+    border: 3px dashed var(--medium-gray);
+    border-radius: 8px;
+    padding: 3rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: var(--light-gray);
+}
+
+.drop-zone:hover {
+    border-color: var(--primary-blue);
+    background-color: var(--light-blue);
+}
+
+.drop-zone.dragover {
+    border-color: var(--secondary-blue);
+    background-color: var(--light-blue);
+}
+
+.drop-zone i {
+    font-size: 3rem;
+    color: var(--primary-blue);
+    margin-bottom: 1rem;
+}
+
+.drop-zone p {
+    font-size: 1.1rem;
+    color: var(--dark-gray);
+    margin: 0.5rem 0;
+}
+
+.upload-hint {
+    font-size: 0.9rem;
+    color: var(--medium-gray);
+}
+
+.upload-info {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: var(--light-blue);
+    border-radius: 5px;
+}
+
+.upload-info p {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--primary-blue);
+}
+
+.upload-info ul {
+    list-style: none;
+    padding-left: 0;
+    margin-top: 0.5rem;
+}
+
+.upload-info li {
+    padding: 0.3rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.upload-info li:before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: var(--success);
+    font-weight: bold;
+}
+
+/* Progress Bar */
+.upload-progress {
+    margin-top: 1.5rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 25px;
+    background-color: var(--light-gray);
+    border-radius: 15px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 15px;
+}
+
+#progressText {
+    text-align: center;
+    color: var(--medium-gray);
+    font-weight: 500;
+}
+
+/* Upload Result */
+.upload-result {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 5px;
+    display: none;
+}
+
+.upload-result.success {
+    background-color: #D4EDDA;
+    color: #155724;
+    border: 1px solid #C3E6CB;
+    display: block;
+}
+
+.upload-result.error {
+    background-color: #F8D7DA;
+    color: #721C24;
+    border: 1px solid #F5C6CB;
+    display: block;
+}
+
+/* History Section */
+.history-section {
+    margin-top: 2rem;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.history-item {
+    padding: 1rem;
+    background-color: var(--light-gray);
+    border-radius: 5px;
+    border-left: 4px solid var(--primary-blue);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.history-info {
+    flex: 1;
+}
+
+.history-info h3 {
+    color: var(--primary-blue);
+    margin-bottom: 0.3rem;
+}
+
+.history-info p {
+    color: var(--medium-gray);
+    font-size: 0.9rem;
+}
+
+.history-badge {
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.history-badge.success {
+    background-color: var(--success);
+    color: var(--white);
+}
+
+.history-badge.error {
+    background-color: var(--error);
+    color: var(--white);
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+    .login-section {
+        margin: 2rem auto;
+    }
+
+    .history-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+

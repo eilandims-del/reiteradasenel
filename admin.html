@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - Sistema de Reinteradas</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1 class="logo">Painel Administrativo</h1>
+                <nav class="header-nav">
+                    <a href="index.html" class="nav-link">
+                        <i class="fas fa-home"></i> Página Inicial
+                    </a>
+                    <button id="logoutBtn" class="nav-link btn-logout" style="display: none;">
+                        <i class="fas fa-sign-out-alt"></i> Sair
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Área de Login -->
+            <section id="loginSection" class="login-section card">
+                <h2 class="section-title">
+                    <i class="fas fa-lock"></i> Acesso Administrativo
+                </h2>
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label for="email">E-mail:</label>
+                        <input type="email" id="email" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="senha">Senha:</label>
+                        <input type="password" id="senha" class="form-input" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-sign-in-alt"></i> Entrar
+                    </button>
+                    <div id="loginError" class="error-message"></div>
+                </form>
+            </section>
+
+            <!-- Área Administrativa (após login) -->
+            <section id="adminSection" class="admin-section" style="display: none;">
+                <!-- Upload de Planilhas -->
+                <section class="upload-section card">
+                    <h2 class="section-title">
+                        <i class="fas fa-upload"></i> Upload de Planilhas
+                    </h2>
+                    <div class="upload-area">
+                        <input type="file" id="fileInput" accept=".csv,.xls,.xlsx,.xlsb" style="display: none;">
+                        <div id="dropZone" class="drop-zone">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Arraste arquivos aqui ou clique para selecionar</p>
+                            <p class="upload-hint">Formatos aceitos: CSV, XLS, XLSX, XLSB</p>
+                        </div>
+                        <div class="upload-info">
+                            <p><strong>Estrutura obrigatória:</strong></p>
+                            <ul>
+                                <li>INCIDENCIA</li>
+                                <li>CAUSA</li>
+                                <li>ALIMENT.</li>
+                                <li>DATA</li>
+                                <li>ELEMENTO</li>
+                                <li>CONJUNTO</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div id="uploadProgress" class="upload-progress" style="display: none;">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                        <p id="progressText">Processando...</p>
+                    </div>
+                    <div id="uploadResult" class="upload-result"></div>
+                </section>
+
+                <!-- Histórico de Uploads -->
+                <section class="history-section card">
+                    <h2 class="section-title">
+                        <i class="fas fa-history"></i> Histórico de Uploads
+                    </h2>
+                    <div id="uploadHistory" class="history-list">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin"></i> Carregando histórico...
+                        </div>
+                    </div>
+                </section>
+            </section>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        <span id="toastMessage"></span>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/services/firebase-service.js"></script>
+    <script type="module" src="js/utils/file-parser.js"></script>
+    <script type="module" src="js/utils/helpers.js"></script>
+    <script type="module" src="js/admin.js"></script>
+</body>
+</html>
+
