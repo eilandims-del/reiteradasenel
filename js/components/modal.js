@@ -195,49 +195,91 @@ function formatIncidenciaUrl(incidencia) {
 
 /**
  * Formatar data para exibição (DD/MM/YYYY)
+ * IMPORTANTE: Parse manual de strings ISO para evitar problemas de timezone
  * Aceita string ISO, Date object, Timestamp do Firestore
  */
 function formatDate(dateValue) {
     if (!dateValue) return 'N/A';
     
     try {
-        let date = null;
+        let day, month, year;
 
         // Se for Timestamp do Firestore
         if (dateValue && typeof dateValue.toDate === 'function') {
-            date = dateValue.toDate();
+            const date = dateValue.toDate(); // Já é Date local
+            day = date.getDate();
+            month = date.getMonth() + 1;
+            year = date.getFullYear();
         }
         // Se for objeto Date
         else if (dateValue instanceof Date) {
-            date = dateValue;
+            day = dateValue.getDate();
+            month = dateValue.getMonth() + 1;
+            year = dateValue.getFullYear();
         }
-        // Se for string
+        // Se for string ISO (YYYY-MM-DD) - PARSEAR MANUALMENTE
         else if (typeof dateValue === 'string') {
-            // Se estiver no formato ISO (YYYY-MM-DD), fazer parse
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-                // Parse ISO date (YYYY-MM-DD)
-                const parts = dateValue.split('-');
-                date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            const trimmed = dateValue.trim();
+            
+            // Formato ISO: YYYY-MM-DD - PARSEAR MANUALMENTE (NUNCA new Date())
+            if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+                const parts = trimmed.split('-');
+                if (parts.length === 3) {
+                    year = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    day = parseInt(parts[2], 10);
+                } else {
+                    return dateValue || 'N/A';
+                }
+            }
+            // Formato brasileiro: DD/MM/YYYY
+            else if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}/.test(trimmed)) {
+                const parts = trimmed.split(/[\/\-\.]/);
+                if (parts.length === 3) {
+                    day = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    year = parseInt(parts[2], 10);
+                } else {
+                    return dateValue || 'N/A';
+                }
+            }
+            // Outro formato - tentar como último recurso
+            else {
+                const date = new Date(trimmed);
+                if (!isNaN(date.getTime())) {
+                    day = date.getDate();
+                    month = date.getMonth() + 1;
+                    year = date.getFullYear();
+                } else {
+                    return dateValue || 'N/A';
+                }
+            }
+        }
+        // Outro tipo
+        else {
+            const date = new Date(dateValue);
+            if (!isNaN(date.getTime())) {
+                day = date.getDate();
+                month = date.getMonth() + 1;
+                year = date.getFullYear();
             } else {
-                // Tentar parse padrão
-                date = new Date(dateValue);
+                return String(dateValue || 'N/A');
             }
         }
 
-        // Validar data
-        if (!date || isNaN(date.getTime())) {
-            console.warn('Data inválida no formatDate:', dateValue);
-            return dateValue || 'N/A';
+        // Validar valores
+        if (!day || !month || !year) {
+            return String(dateValue || 'N/A');
         }
 
-        // Formatar para pt-BR (DD/MM/YYYY)
-        return date.toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
+        // Formatar para DD/MM/YYYY sem aplicar timezone
+        const dayStr = String(day).padStart(2, '0');
+        const monthStr = String(month).padStart(2, '0');
+        const yearStr = String(year);
+
+        return `${dayStr}/${monthStr}/${yearStr}`;
     } catch (e) {
         console.warn('Erro ao formatar data:', dateValue, e);
-        return dateValue || 'N/A';
+        return String(dateValue || 'N/A');
     }
 }

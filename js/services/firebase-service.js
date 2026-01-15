@@ -137,22 +137,45 @@ export class DataService {
             snapshot.forEach(doc => {
                 const docData = doc.data();
                 
-                // Converter Timestamp do Firestore para string ISO se necessário
+                // Converter Timestamp do Firestore para string ISO usando métodos locais
+                // IMPORTANTE: NUNCA usar toISOString() que aplica UTC e causa deslocamento de dia
                 if (docData.DATA) {
                     if (docData.DATA.toDate && typeof docData.DATA.toDate === 'function') {
-                        // É Timestamp do Firestore
+                        // É Timestamp do Firestore - usar métodos locais
                         const date = docData.DATA.toDate();
-                        docData.DATA = date.toISOString().split('T')[0];
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        docData.DATA = `${year}-${month}-${day}`;
                     } else if (docData.DATA instanceof Date) {
-                        // É objeto Date
-                        docData.DATA = docData.DATA.toISOString().split('T')[0];
+                        // É objeto Date - usar métodos locais
+                        const year = docData.DATA.getFullYear();
+                        const month = String(docData.DATA.getMonth() + 1).padStart(2, '0');
+                        const day = String(docData.DATA.getDate()).padStart(2, '0');
+                        docData.DATA = `${year}-${month}-${day}`;
                     } else if (typeof docData.DATA === 'string') {
-                        // Já é string, garantir formato ISO
-                        if (!/^\d{4}-\d{2}-\d{2}$/.test(docData.DATA)) {
-                            // Tentar converter para ISO
-                            const parsed = new Date(docData.DATA);
-                            if (!isNaN(parsed.getTime())) {
-                                docData.DATA = parsed.toISOString().split('T')[0];
+                        // Já é string, garantir formato ISO sem usar new Date()
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(docData.DATA.trim())) {
+                            // Tentar parse manual
+                            const trimmed = docData.DATA.trim();
+                            // Formato brasileiro: DD/MM/YYYY
+                            if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}/.test(trimmed)) {
+                                const parts = trimmed.split(/[\/\-\.]/);
+                                if (parts.length === 3) {
+                                    const day = parseInt(parts[0], 10);
+                                    const month = parseInt(parts[1], 10);
+                                    const year = parseInt(parts[2], 10);
+                                    docData.DATA = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                }
+                            } else {
+                                // Último recurso - usar new Date() apenas se necessário
+                                const parsed = new Date(trimmed);
+                                if (!isNaN(parsed.getTime())) {
+                                    const year = parsed.getFullYear();
+                                    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+                                    const day = String(parsed.getDate()).padStart(2, '0');
+                                    docData.DATA = `${year}-${month}-${day}`;
+                                }
                             }
                         }
                     }
@@ -175,22 +198,45 @@ export class DataService {
                 snapshot.forEach(doc => {
                     const docData = doc.data();
                     
-                    // Converter Timestamp do Firestore para string ISO se necessário
+                    // Converter Timestamp do Firestore para string ISO usando métodos locais
+                    // IMPORTANTE: NUNCA usar toISOString() que aplica UTC e causa deslocamento
                     if (docData.DATA) {
                         if (docData.DATA.toDate && typeof docData.DATA.toDate === 'function') {
-                            // É Timestamp do Firestore
+                            // É Timestamp do Firestore - usar métodos locais
                             const date = docData.DATA.toDate();
-                            docData.DATA = date.toISOString().split('T')[0];
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            docData.DATA = `${year}-${month}-${day}`;
                         } else if (docData.DATA instanceof Date) {
-                            // É objeto Date
-                            docData.DATA = docData.DATA.toISOString().split('T')[0];
+                            // É objeto Date - usar métodos locais
+                            const year = docData.DATA.getFullYear();
+                            const month = String(docData.DATA.getMonth() + 1).padStart(2, '0');
+                            const day = String(docData.DATA.getDate()).padStart(2, '0');
+                            docData.DATA = `${year}-${month}-${day}`;
                         } else if (typeof docData.DATA === 'string') {
-                            // Já é string, garantir formato ISO
-                            if (!/^\d{4}-\d{2}-\d{2}$/.test(docData.DATA)) {
-                                // Tentar converter para ISO
-                                const parsed = new Date(docData.DATA);
-                                if (!isNaN(parsed.getTime())) {
-                                    docData.DATA = parsed.toISOString().split('T')[0];
+                            // Já é string, garantir formato ISO sem usar new Date()
+                            if (!/^\d{4}-\d{2}-\d{2}$/.test(docData.DATA.trim())) {
+                                // Tentar parse manual
+                                const trimmed = docData.DATA.trim();
+                                // Formato brasileiro: DD/MM/YYYY
+                                if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}/.test(trimmed)) {
+                                    const parts = trimmed.split(/[\/\-\.]/);
+                                    if (parts.length === 3) {
+                                        const day = parseInt(parts[0], 10);
+                                        const month = parseInt(parts[1], 10);
+                                        const year = parseInt(parts[2], 10);
+                                        docData.DATA = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                    }
+                                } else {
+                                    // Último recurso - usar new Date() apenas se necessário
+                                    const parsed = new Date(trimmed);
+                                    if (!isNaN(parsed.getTime())) {
+                                        const year = parsed.getFullYear();
+                                        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+                                        const day = String(parsed.getDate()).padStart(2, '0');
+                                        docData.DATA = `${year}-${month}-${day}`;
+                                    }
                                 }
                             }
                         }

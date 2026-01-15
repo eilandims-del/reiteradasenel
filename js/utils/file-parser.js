@@ -75,82 +75,126 @@ function normalizeRow(row, headers) {
 
 /**
  * Converter data para formato padrão ISO (YYYY-MM-DD)
+ * IMPORTANTE: Esta função NUNCA usa new Date() com strings YYYY-MM-DD
+ * para evitar conversões automáticas de timezone que causam deslocamento de dia.
+ * 
  * Suporta múltiplos formatos: Excel serial, Date object, strings diversas
+ * Retorna sempre string ISO (YYYY-MM-DD) sem aplicar timezone
  */
 function parseDate(value) {
     if (!value) return null;
 
-    // Se já for uma string no formato correto (ISO)
-    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        return value;
+    // Se já for uma string no formato correto (ISO), retornar direto
+    // NUNCA passar para new Date() pois interpreta como UTC
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+        return value.trim();
     }
 
-    let date = null;
-
     try {
-        // Se for objeto Date
-        if (value instanceof Date) {
-            date = value;
-        }
+        let year, month, day;
+
         // Se for número (Excel serial date)
-        else if (typeof value === 'number') {
-            // Excel serial date (dias desde 1900-01-01)
-            date = new Date((value - 25569) * 86400 * 1000);
+        if (typeof value === 'number') {
+            // Excel serial date: dias desde 1900-01-01
+            // Converter manualmente sem usar Date para evitar timezone
+            const excelEpoch = new Date(1900, 0, 1); // 1 de janeiro de 1900 (local)
+            const days = value - 2; // Excel considera 1900 como ano bissexto (bug do Excel)
+            const milliseconds = days * 86400 * 1000;
+            const date = new Date(excelEpoch.getTime() + milliseconds);
+            
+            // Usar métodos locais para evitar timezone
+            year = date.getFullYear();
+            month = date.getMonth() + 1; // getMonth() retorna 0-11
+            day = date.getDate();
         }
-        // Se for string, tentar múltiplos formatos
+        // Se for string, parsear manualmente
         else if (typeof value === 'string') {
             const trimmed = value.trim();
             
-            // Formato ISO: YYYY-MM-DD
+            // Formato ISO: YYYY-MM-DD - PARSEAR MANUALMENTE (NUNCA usar new Date())
             if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
-                date = new Date(trimmed);
+                const parts = trimmed.split('-');
+                if (parts.length >= 3) {
+                    year = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    day = parseInt(parts[2], 10);
+                }
             }
             // Formato brasileiro: DD/MM/YYYY ou DD-MM-YYYY ou DD.MM.YYYY
             else if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}/.test(trimmed)) {
                 const parts = trimmed.split(/[\/\-\.]/);
                 if (parts.length === 3) {
-                    const day = parseInt(parts[0], 10);
-                    const month = parseInt(parts[1], 10) - 1; // Month é 0-indexed
-                    const year = parseInt(parts[2], 10);
-                    date = new Date(year, month, day);
+                    day = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    year = parseInt(parts[2], 10);
                 }
             }
-            // Formato reverso: YYYY/MM/DD
+            // Formato reverso: YYYY/MM/DD ou YYYY-MM-DD
             else if (/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}/.test(trimmed)) {
                 const parts = trimmed.split(/[\/\-\.]/);
                 if (parts.length === 3) {
-                    const year = parseInt(parts[0], 10);
-                    const month = parseInt(parts[1], 10) - 1;
-                    const day = parseInt(parts[2], 10);
-                    date = new Date(year, month, day);
+                    year = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    day = parseInt(parts[2], 10);
                 }
             }
-            // Tentar parse padrão do JavaScript
+            // Tentar parse padrão do JavaScript como último recurso
             else {
-                date = new Date(trimmed);
+                const date = new Date(trimmed);
+                if (!isNaN(date.getTime())) {
+                    year = date.getFullYear();
+                    month = date.getMonth() + 1;
+                    day = date.getDate();
+                } else {
+                    console.warn('Data inválida (formato não reconhecido):', value);
+                    return null;
+                }
             }
+        }
+        // Se for objeto Date
+        else if (value instanceof Date) {
+            // Usar métodos locais (getFullYear, getMonth, getDate) que retornam valores locais
+            year = value.getFullYear();
+            month = value.getMonth() + 1;
+            day = value.getDate();
         }
         // Se for Timestamp do Firestore
         else if (value && typeof value.toDate === 'function') {
-            date = value.toDate();
+            const date = value.toDate(); // Converte para Date local
+            year = date.getFullYear();
+            month = date.getMonth() + 1;
+            day = date.getDate();
         }
-        // Última tentativa: new Date()
+        // Última tentativa
         else {
-            date = new Date(value);
+            const date = new Date(value);
+            if (!isNaN(date.getTime())) {
+                year = date.getFullYear();
+                month = date.getMonth() + 1;
+                day = date.getDate();
+            } else {
+                console.warn('Data inválida:', value);
+                return null;
+            }
         }
 
-        // Validar se a data é válida
-        if (!date || isNaN(date.getTime())) {
-            console.warn('Data inválida:', value);
+        // Validar valores parseados
+        if (!year || !month || !day) {
+            console.warn('Data inválida (valores não encontrados):', value);
             return null;
         }
 
-        // Converter para formato ISO (YYYY-MM-DD)
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+            console.warn('Data inválida (valores fora do range):', value, {year, month, day});
+            return null;
+        }
 
-        return `${year}-${month}-${day}`;
+        // Montar string ISO sem aplicar timezone
+        const yearStr = String(year).padStart(4, '0');
+        const monthStr = String(month).padStart(2, '0');
+        const dayStr = String(day).padStart(2, '0');
+
+        return `${yearStr}-${monthStr}-${dayStr}`;
     } catch (e) {
         console.warn('Erro ao parsear data:', value, e);
         return null;

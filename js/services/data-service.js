@@ -162,28 +162,74 @@ export function filterByDateRange(data, dataInicial, dataFinal) {
             return false;
         }
 
-        // Se for Timestamp do Firestore, converter
+        let dateISO = null;
+
+        // Se for Timestamp do Firestore, converter usando métodos locais
         if (itemDate && typeof itemDate.toDate === 'function') {
             const date = itemDate.toDate();
-            itemDate = date.toISOString().split('T')[0];
+            // Usar métodos locais para evitar timezone
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            dateISO = `${year}-${month}-${day}`;
         }
-        // Se for Date object, converter
+        // Se for Date object, converter usando métodos locais
         else if (itemDate instanceof Date) {
-            itemDate = itemDate.toISOString().split('T')[0];
+            const year = itemDate.getFullYear();
+            const month = String(itemDate.getMonth() + 1).padStart(2, '0');
+            const day = String(itemDate.getDate()).padStart(2, '0');
+            dateISO = `${year}-${month}-${day}`;
         }
-        // Se for string, garantir formato ISO
+        // Se for string, garantir formato ISO sem usar new Date()
         else if (typeof itemDate === 'string') {
-            // Se já estiver no formato ISO, usar direto
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(itemDate)) {
-                // Tentar converter
-                const parsed = new Date(itemDate);
+            const trimmed = itemDate.trim();
+            // Se já estiver no formato ISO, usar direto (NUNCA new Date())
+            if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+                dateISO = trimmed;
+            }
+            // Se for formato brasileiro, parsear manualmente
+            else if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}/.test(trimmed)) {
+                const parts = trimmed.split(/[\/\-\.]/);
+                if (parts.length === 3) {
+                    const day = parseInt(parts[0], 10);
+                    const month = parseInt(parts[1], 10);
+                    const year = parseInt(parts[2], 10);
+                    dateISO = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                } else {
+                    return false;
+                }
+            }
+            // Formato reverso: YYYY/MM/DD
+            else if (/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}/.test(trimmed)) {
+                const parts = trimmed.split(/[\/\-\.]/);
+                if (parts.length === 3) {
+                    const year = parseInt(parts[0], 10);
+                    const month = parseInt(parts[1], 10);
+                    const day = parseInt(parts[2], 10);
+                    dateISO = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                } else {
+                    return false;
+                }
+            }
+            // Outro formato - tentar como último recurso
+            else {
+                const parsed = new Date(trimmed);
                 if (!isNaN(parsed.getTime())) {
-                    itemDate = parsed.toISOString().split('T')[0];
+                    const year = parsed.getFullYear();
+                    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+                    const day = String(parsed.getDate()).padStart(2, '0');
+                    dateISO = `${year}-${month}-${day}`;
                 } else {
                     return false;
                 }
             }
         }
+        
+        if (!dateISO) {
+            return false;
+        }
+        
+        itemDate = dateISO;
 
         // Comparação de strings ISO (YYYY-MM-DD) funciona diretamente
         if (inicioISO && itemDate < inicioISO) {
