@@ -8,7 +8,7 @@ import { renderRankingElemento, generateRankingText } from './components/ranking
 import { updateCharts } from './components/charts.js';
 import { updateHeatmap, initMap } from './components/mapa.js';
 import { openModal, closeModal, initModalEvents, fillDetailsModal } from './components/modal.js';
-import { copyToClipboard, showToast } from './utils/helpers.js';
+import { copyToClipboard, showToast, debounce } from './utils/helpers.js';
 
 let currentData = [];
 let selectedAdditionalColumns = [];
@@ -120,29 +120,51 @@ async function loadData() {
 
 /**
  * Renderizar todos os componentes
+ * OTIMIZADO: Renderização assíncrona para não travar a UI com grandes volumes
  */
 function renderAll() {
     if (currentData.length === 0) return;
 
-    renderRankingElemento(currentData);
-    updateCharts(currentData);
-    updateHeatmap(currentData);
+    console.log(`[RENDER] Renderizando ${currentData.length} registros...`);
+    
+    // Renderizar assincronamente usando requestAnimationFrame
+    requestAnimationFrame(() => {
+        renderRankingElemento(currentData);
+    });
+    
+    requestAnimationFrame(() => {
+        updateCharts(currentData);
+    });
+    
+    requestAnimationFrame(() => {
+        updateHeatmap(currentData);
+    });
+    
+    console.log('[RENDER] Renderização iniciada (assíncrona)');
 }
 
 /**
  * Aplicar filtros
+ * OTIMIZADO: Com debounce para melhor performance com grandes volumes
  */
-function applyFilters() {
+const applyFiltersDebounced = debounce(() => {
     const dataInicial = document.getElementById('dataInicial')?.value;
     const dataFinal = document.getElementById('dataFinal')?.value;
 
     const filteredData = filterByDateRange(currentData, dataInicial, dataFinal);
     
-    renderRankingElemento(filteredData);
-    updateCharts(filteredData);
-    updateHeatmap(filteredData);
+    // Renderizar assincronamente para não travar a UI
+    requestAnimationFrame(() => {
+        renderRankingElemento(filteredData);
+        updateCharts(filteredData);
+        updateHeatmap(filteredData);
+        
+        showToast(`Filtro aplicado: ${filteredData.length} registro(s) encontrado(s).`, 'success');
+    });
+}, 300); // 300ms de debounce
 
-    showToast(`Filtro aplicado: ${filteredData.length} registro(s) encontrado(s).`, 'success');
+function applyFilters() {
+    applyFiltersDebounced();
 }
 
 /**

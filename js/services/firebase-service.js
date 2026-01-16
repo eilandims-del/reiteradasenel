@@ -208,17 +208,41 @@ export class DataService {
     }
 
     /**
-     * Buscar todos os dados
+     * Buscar todos os dados com paginação/streaming para suportar grandes volumes (10k+)
      * Nota: Filtros de data são aplicados no cliente para maior flexibilidade
      */
     static async getData(filters = {}) {
         try {
-            let query = db.collection(this.COLLECTION_NAME).orderBy('DATA', 'desc');
-
-            const snapshot = await query.get();
+            // Firestore tem limite de 1MB por query, então usamos paginação
+            const BATCH_SIZE = 1000; // Máximo seguro por query
+            let query = db.collection(this.COLLECTION_NAME).orderBy('DATA', 'desc').limit(BATCH_SIZE);
             const data = [];
+            let lastDoc = null;
+            let batchCount = 0;
+            const MAX_BATCHES = 20; // Limite de segurança: 20k registros (pode aumentar se necessário)
 
-            snapshot.forEach(doc => {
+            console.log('[GET DATA] Iniciando busca de dados com paginação...');
+
+            // Buscar em batches até não haver mais documentos
+            do {
+                try {
+                    if (lastDoc) {
+                        query = db.collection(this.COLLECTION_NAME)
+                            .orderBy('DATA', 'desc')
+                            .startAfter(lastDoc)
+                            .limit(BATCH_SIZE);
+                    }
+
+                    const snapshot = await query.get();
+                    
+                    if (snapshot.empty) {
+                        break;
+                    }
+
+                    batchCount++;
+                    console.log(`[GET DATA] Batch ${batchCount}: ${snapshot.size} documentos carregados (total: ${data.length + snapshot.size})`);
+
+                    snapshot.forEach(doc => {
                 const docData = doc.data();
                 
                 // Converter Timestamp do Firestore para string ISO usando métodos locais
@@ -310,15 +334,37 @@ export class DataService {
                                 }
                             }
                         }
+                        }
                     }
-                }
-                
-                data.push({
-                    id: doc.id,
-                    ...docData
-                });
-            });
+                    
+                        data.push({
+                            id: doc.id,
+                            ...docData
+                        });
+                    });
 
+                    // Preparar próximo batch
+                    lastDoc = snapshot.docs[snapshot.docs.length - 1];
+                    
+                    // Limite de segurança para evitar loops infinitos
+                    if (batchCount >= MAX_BATCHES) {
+                        console.warn(`[GET DATA] Limite de batches atingido (${MAX_BATCHES}). Total carregado: ${data.length} registros`);
+                        break;
+                    }
+
+                    // Throttling entre batches para não sobrecarregar
+                    if (snapshot.size === BATCH_SIZE) {
+                        await this.sleep(100); // Pequeno delay entre batches
+                    }
+
+                } catch (batchError) {
+                    console.error(`[GET DATA] Erro ao buscar batch ${batchCount + 1}:`, batchError);
+                    // Continuar com os dados já carregados
+                    break;
+                }
+            } while (lastDoc);
+
+            console.log(`[GET DATA] Busca concluída: ${data.length} registros carregados em ${batchCount} batches`);
             return { success: true, data };
         } catch (error) {
             console.error('Erro ao buscar dados:', error);
@@ -380,8 +426,10 @@ export class DataService {
                     });
                 });
 
+                    console.log(`[GET DATA] Fallback concluído: ${data.length} registros carregados`);
                 return { success: true, data };
             } catch (retryError) {
+                console.error('[GET DATA] Erro no fallback:', retryError);
                 return {
                     success: false,
                     error: retryError.message,

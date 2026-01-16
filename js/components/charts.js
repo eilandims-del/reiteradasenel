@@ -64,7 +64,7 @@ export function renderChartCausa(data) {
                 },
                 title: {
                     display: true,
-                    text: 'Top 10 Causas',
+                    text: 'Top 20 Causas',
                     font: {
                         size: 18,
                         weight: '700',
@@ -189,7 +189,7 @@ export function renderChartAlimentador(data) {
                 },
                 title: {
                     display: true,
-                    text: 'Top 10 Alimentadores',
+                    text: 'Top 20 Alimentadores',
                     font: {
                         size: 18,
                         weight: '700',

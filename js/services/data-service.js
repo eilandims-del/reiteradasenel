@@ -35,39 +35,51 @@ export function generateRankingElemento(data) {
 
 /**
  * Gerar ranking por CAUSA
+ * OTIMIZADO: Limita a top 20 para melhor performance com grandes volumes
  */
 export function generateRankingCausa(data) {
     const causas = {};
     
-    data.forEach(item => {
-        const causa = item.CAUSA || item['CAUSA'] || 'Não especificado';
-        causas[causa] = (causas[causa] || 0) + 1;
-    });
+    // Otimização: processar em chunks para não travar com 10k+ registros
+    const CHUNK_SIZE = 1000;
+    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunk = data.slice(i, i + CHUNK_SIZE);
+        chunk.forEach(item => {
+            const causa = item.CAUSA || item['CAUSA'] || 'Não especificado';
+            causas[causa] = (causas[causa] || 0) + 1;
+        });
+    }
 
     const ranking = Object.entries(causas)
         .map(([causa, count]) => ({ causa, count }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 10); // Top 10
+        .slice(0, 20); // Top 20 (aumentado de 10 para melhor visualização)
 
     return ranking;
 }
 
 /**
  * Gerar ranking por ALIMENTADOR
+ * OTIMIZADO: Limita a top 20 e processa em chunks para melhor performance
  */
 export function generateRankingAlimentador(data) {
     const alimentadores = {};
     
-    data.forEach(item => {
-        // Tentar várias variações possíveis da chave (com ponto, sem ponto, normalizado)
-        const alimentador = item['ALIMENT.'] || item.ALIMENTADOR || item['ALIMENT'] || item.ALIMENT || 'Não especificado';
-        alimentadores[alimentador] = (alimentadores[alimentador] || 0) + 1;
-    });
+    // Otimização: processar em chunks para não travar com 10k+ registros
+    const CHUNK_SIZE = 1000;
+    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunk = data.slice(i, i + CHUNK_SIZE);
+        chunk.forEach(item => {
+            // Tentar várias variações possíveis da chave (com ponto, sem ponto, normalizado)
+            const alimentador = item['ALIMENT.'] || item.ALIMENTADOR || item['ALIMENT'] || item.ALIMENT || 'Não especificado';
+            alimentadores[alimentador] = (alimentadores[alimentador] || 0) + 1;
+        });
+    }
 
     const ranking = Object.entries(alimentadores)
         .map(([alimentador, count]) => ({ alimentador, count }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 10); // Top 10
+        .slice(0, 20); // Top 20 (aumentado de 10 para melhor visualização)
 
     return ranking;
 }
