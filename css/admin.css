@@ -184,6 +184,15 @@
     margin-top: 2rem;
 }
 
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
 .history-list {
     display: flex;
     flex-direction: column;

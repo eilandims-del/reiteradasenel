@@ -89,9 +89,14 @@
 
                 <!-- Histórico de Uploads -->
                 <section class="history-section card">
-                    <h2 class="section-title">
-                        <i class="fas fa-history"></i> Histórico de Uploads
-                    </h2>
+                    <div class="history-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-history"></i> Histórico de Uploads
+                        </h2>
+                        <button id="btnClearAll" class="btn btn-danger btn-sm" title="Limpar TODOS os dados do banco">
+                            <i class="fas fa-trash-alt"></i> Limpar Tudo
+                        </button>
+                    </div>
                     <div id="uploadHistory" class="history-list">
                         <div class="loading-spinner">
                             <i class="fas fa-spinner fa-spin"></i> Carregando histórico...

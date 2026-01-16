@@ -72,6 +72,14 @@ function initEventListeners() {
         });
     }
 
+    // Limpeza completa
+    const btnClearAll = document.getElementById('btnClearAll');
+    if (btnClearAll) {
+        btnClearAll.addEventListener('click', async () => {
+            await handleClearAll();
+        });
+    }
+
     // File input
     const fileInput = document.getElementById('fileInput');
     const dropZone = document.getElementById('dropZone');
@@ -328,6 +336,107 @@ async function handleDeleteUpload(uploadId, fileName) {
         showToast(`Erro inesperado: ${error.message}`, 'error');
         
         // Restaurar conteúdo original
+        setTimeout(() => {
+            historyContainer.innerHTML = originalContent;
+            loadUploadHistory();
+        }, 2000);
+    }
+}
+
+/**
+ * Manipular limpeza completa do banco
+ * ⚠️ FUNÇÃO DESTRUTIVA - Remove TODOS os dados
+ */
+async function handleClearAll() {
+    // Confirmação dupla (muito perigoso)
+    const firstConfirm = confirm(
+        '⚠️ ATENÇÃO: LIMPEZA COMPLETA DO BANCO DE DADOS\n\n' +
+        'Esta ação irá:\n' +
+        '• Deletar TODOS os registros da coleção "reinteradas"\n' +
+        '• Deletar TODOS os registros da coleção "uploads"\n' +
+        '• Esta ação NÃO PODE SER DESFEITA\n\n' +
+        'Tem CERTEZA ABSOLUTA que deseja continuar?'
+    );
+
+    if (!firstConfirm) {
+        return;
+    }
+
+    // Segunda confirmação
+    const secondConfirm = confirm(
+        '⚠️ ÚLTIMA CONFIRMAÇÃO\n\n' +
+        'Digite "CONFIRMAR" no próximo prompt para prosseguir.\n\n' +
+        'Esta ação é IRREVERSÍVEL!'
+    );
+
+    if (!secondConfirm) {
+        return;
+    }
+
+    const typedConfirm = prompt(
+        'Digite "CONFIRMAR" (em maiúsculas) para executar a limpeza completa:'
+    );
+
+    if (typedConfirm !== 'CONFIRMAR') {
+        showToast('Limpeza cancelada. Você não digitou "CONFIRMAR" corretamente.', 'error');
+        return;
+    }
+
+    // Mostrar loading
+    const historyContainer = document.getElementById('uploadHistory');
+    const originalContent = historyContainer.innerHTML;
+    historyContainer.innerHTML = `
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> 
+            <p>Limpando TODOS os dados do banco...</p>
+            <p style="font-size: 0.9rem; color: var(--medium-gray); margin-top: 0.5rem;">
+                Isso pode levar vários minutos dependendo do volume de dados.
+            </p>
+        </div>
+    `;
+
+    try {
+        console.log('[ADMIN] Iniciando limpeza completa do banco...');
+        
+        const result = await DataService.clearAllData();
+
+        if (result.success) {
+            const message = `✅ Limpeza completa realizada!\n\n` +
+                `• Reinteradas: ${result.reinteradas || 0} documentos removidos\n` +
+                `• Uploads: ${result.uploads || 0} documentos removidos\n` +
+                `• Total: ${result.deletedCount || 0} documentos removidos`;
+            
+            alert(message);
+            showToast('Limpeza completa realizada com sucesso!', 'success');
+            console.log('[ADMIN] Limpeza completa bem-sucedida:', result);
+            
+            // Recarregar histórico após 2 segundos
+            setTimeout(() => {
+                loadUploadHistory();
+            }, 2000);
+        } else {
+            const errorMessage = result.error || 'Erro desconhecido';
+            const partialMessage = result.deletedCount > 0
+                ? `⚠️ Limpeza parcial:\n\n` +
+                  `• Removidos: ${result.deletedCount} documentos\n` +
+                  `• Reinteradas: ${result.reinteradas || 0}\n` +
+                  `• Uploads: ${result.uploads || 0}\n\n` +
+                  `Erro: ${errorMessage}`
+                : `❌ Erro na limpeza: ${errorMessage}`;
+            
+            alert(partialMessage);
+            showToast(`Erro: ${errorMessage}`, 'error');
+            console.error('[ADMIN] Erro na limpeza completa:', result);
+            
+            // Recarregar histórico mesmo em caso de erro parcial
+            setTimeout(() => {
+                loadUploadHistory();
+            }, 2000);
+        }
+    } catch (error) {
+        console.error('[ADMIN] Erro inesperado na limpeza completa:', error);
+        showToast(`Erro inesperado: ${error.message}`, 'error');
+        
         setTimeout(() => {
             historyContainer.innerHTML = originalContent;
             loadUploadHistory();

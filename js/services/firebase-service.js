@@ -398,7 +398,7 @@ export class DataService {
         try {
             const snapshot = await db.collection(this.UPLOADS_COLLECTION)
                 .orderBy('uploadedAt', 'desc')
-                .limit(20)
+                .limit(5000)
                 .get();
 
             const history = [];
@@ -625,6 +625,181 @@ export class DataService {
                 error: error.message,
                 errorCode: error.code || 'UNKNOWN',
                 deletedCount: 0
+            };
+        }
+    }
+
+    /**
+     * LIMPEZA COMPLETA - Remove TODOS os dados das coleções
+     * ⚠️ ATENÇÃO: Esta função é DESTRUTIVA e não pode ser desfeita!
+     * Requer confirmação dupla antes de executar.
+     * Use apenas quando necessário limpar completamente o banco.
+     */
+    static async clearAllData() {
+        console.log('[CLEAR ALL] Iniciando limpeza completa do banco de dados...');
+        
+        const BATCH_SIZE = 250;
+        const THROTTLE_MS = 500;
+        const MAX_RETRIES = 5;
+        const INITIAL_BACKOFF_MS = 1000;
+        
+        let totalDeleted = 0;
+        const results = {
+            reinteradas: 0,
+            uploads: 0
+        };
+
+        try {
+            // 1. Limpar coleção 'reinteradas'
+            console.log('[CLEAR ALL] Limpando coleção reinteradas...');
+            let reinteradasSnapshot;
+            try {
+                reinteradasSnapshot = await db.collection(this.COLLECTION_NAME).get();
+            } catch (error) {
+                console.error('[CLEAR ALL] Erro ao buscar reinteradas:', error);
+                throw error;
+            }
+
+            const reinteradasDocs = [];
+            reinteradasSnapshot.forEach(doc => {
+                reinteradasDocs.push(doc);
+            });
+
+            const reinteradasBatches = Math.ceil(reinteradasDocs.length / BATCH_SIZE);
+            console.log(`[CLEAR ALL] Encontrados ${reinteradasDocs.length} documentos em reinteradas (${reinteradasBatches} batches)`);
+
+            for (let batchIndex = 0; batchIndex < reinteradasBatches; batchIndex++) {
+                const startIndex = batchIndex * BATCH_SIZE;
+                const endIndex = Math.min(startIndex + BATCH_SIZE, reinteradasDocs.length);
+                const batchDocs = reinteradasDocs.slice(startIndex, endIndex);
+                
+                let retryCount = 0;
+                let batchSuccess = false;
+                
+                while (retryCount < MAX_RETRIES && !batchSuccess) {
+                    try {
+                        const batch = db.batch();
+                        batchDocs.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        
+                        await batch.commit();
+                        results.reinteradas += batchDocs.length;
+                        totalDeleted += batchDocs.length;
+                        batchSuccess = true;
+                        
+                        console.log(`[CLEAR ALL] Batch ${batchIndex + 1}/${reinteradasBatches} de reinteradas commitado: ${batchDocs.length} documentos (${results.reinteradas} total)`);
+                        
+                    } catch (error) {
+                        retryCount++;
+                        const errorCode = error.code || error.message;
+                        const isTransientError = 
+                            errorCode === 'resource-exhausted' ||
+                            errorCode === 'unavailable' ||
+                            errorCode === 'deadline-exceeded';
+                        
+                        if (isTransientError && retryCount < MAX_RETRIES) {
+                            const backoffMs = INITIAL_BACKOFF_MS * Math.pow(2, retryCount - 1);
+                            const jitter = Math.random() * 500;
+                            const delay = backoffMs + jitter;
+                            
+                            console.warn(`[CLEAR ALL] Erro transitório no batch ${batchIndex + 1} de reinteradas (tentativa ${retryCount}/${MAX_RETRIES}): ${errorCode}, próximo retry em ${Math.round(delay)}ms`);
+                            await this.sleep(delay);
+                        } else {
+                            throw error;
+                        }
+                    }
+                }
+                
+                if (batchIndex < reinteradasBatches - 1) {
+                    await this.sleep(THROTTLE_MS);
+                }
+            }
+
+            // 2. Limpar coleção 'uploads'
+            console.log('[CLEAR ALL] Limpando coleção uploads...');
+            let uploadsSnapshot;
+            try {
+                uploadsSnapshot = await db.collection(this.UPLOADS_COLLECTION).get();
+            } catch (error) {
+                console.error('[CLEAR ALL] Erro ao buscar uploads:', error);
+                throw error;
+            }
+
+            const uploadsDocs = [];
+            uploadsSnapshot.forEach(doc => {
+                uploadsDocs.push(doc);
+            });
+
+            const uploadsBatches = Math.ceil(uploadsDocs.length / BATCH_SIZE);
+            console.log(`[CLEAR ALL] Encontrados ${uploadsDocs.length} documentos em uploads (${uploadsBatches} batches)`);
+
+            for (let batchIndex = 0; batchIndex < uploadsBatches; batchIndex++) {
+                const startIndex = batchIndex * BATCH_SIZE;
+                const endIndex = Math.min(startIndex + BATCH_SIZE, uploadsDocs.length);
+                const batchDocs = uploadsDocs.slice(startIndex, endIndex);
+                
+                let retryCount = 0;
+                let batchSuccess = false;
+                
+                while (retryCount < MAX_RETRIES && !batchSuccess) {
+                    try {
+                        const batch = db.batch();
+                        batchDocs.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        
+                        await batch.commit();
+                        results.uploads += batchDocs.length;
+                        totalDeleted += batchDocs.length;
+                        batchSuccess = true;
+                        
+                        console.log(`[CLEAR ALL] Batch ${batchIndex + 1}/${uploadsBatches} de uploads commitado: ${batchDocs.length} documentos (${results.uploads} total)`);
+                        
+                    } catch (error) {
+                        retryCount++;
+                        const errorCode = error.code || error.message;
+                        const isTransientError = 
+                            errorCode === 'resource-exhausted' ||
+                            errorCode === 'unavailable' ||
+                            errorCode === 'deadline-exceeded';
+                        
+                        if (isTransientError && retryCount < MAX_RETRIES) {
+                            const backoffMs = INITIAL_BACKOFF_MS * Math.pow(2, retryCount - 1);
+                            const jitter = Math.random() * 500;
+                            const delay = backoffMs + jitter;
+                            
+                            console.warn(`[CLEAR ALL] Erro transitório no batch ${batchIndex + 1} de uploads (tentativa ${retryCount}/${MAX_RETRIES}): ${errorCode}, próximo retry em ${Math.round(delay)}ms`);
+                            await this.sleep(delay);
+                        } else {
+                            throw error;
+                        }
+                    }
+                }
+                
+                if (batchIndex < uploadsBatches - 1) {
+                    await this.sleep(THROTTLE_MS);
+                }
+            }
+
+            console.log(`[CLEAR ALL] Limpeza completa concluída: ${totalDeleted} documentos removidos (reinteradas: ${results.reinteradas}, uploads: ${results.uploads})`);
+            
+            return {
+                success: true,
+                deletedCount: totalDeleted,
+                reinteradas: results.reinteradas,
+                uploads: results.uploads
+            };
+
+        } catch (error) {
+            console.error('[CLEAR ALL] Erro na limpeza completa:', error);
+            return {
+                success: false,
+                error: error.message,
+                errorCode: error.code || 'UNKNOWN',
+                deletedCount: totalDeleted,
+                reinteradas: results.reinteradas,
+                uploads: results.uploads
             };
         }
     }
