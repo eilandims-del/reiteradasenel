@@ -978,3 +978,76 @@ body::before {
     padding: 1rem;
   }
 }
+/* =========================================
+   OVERRIDE FINAL - Logo maior que o título
+   Cole no FINAL do css/styles.css
+========================================= */
+
+/* Desktop / geral */
+.header-left{
+  align-items: center;
+}
+
+/* Logo realmente dominante */
+.header .header-logo{
+  height: clamp(120px, 9vw, 170px) !important; /* AUMENTA BEM */
+  max-width: 520px !important;
+  object-fit: contain !important;
+  flex: 0 0 auto;
+}
+
+/* Textos um pouco menores para a logo “ganhar” */
+.header .header-title{
+  font-size: clamp(1.2rem, 1.7vw, 1.55rem) !important;
+  line-height: 1.08 !important;
+}
+
+.header .header-subtitle{
+  font-size: clamp(.85rem, 1.15vw, 1rem) !important;
+  line-height: 1.15 !important;
+  opacity: .95 !important;
+}
+
+/* Mobile: logo em cima, grande e alinhada */
+@media (max-width: 600px){
+  .header-content{
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .header-left{
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: .55rem !important;
+  }
+
+  .header .header-logo{
+    height: 110px !important;     /* maior no celular */
+    max-width: 260px !important;  /* evita estourar */
+  }
+
+  .header .header-title{
+    font-size: 1.35rem !important;
+  }
+
+  .header .header-subtitle{
+    font-size: .95rem !important;
+  }
+
+  /* Botões em 2 colunas, bonitos e sem quebrar */
+  .header-actions{
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: .75rem !important;
+  }
+
+  .header-actions .btn{
+    width: 100% !important;
+    justify-content: center !important;
+    padding: .85rem 1rem !important;
+    font-size: 1rem !important;
+    border-radius: 14px !important;
+  }
+}
