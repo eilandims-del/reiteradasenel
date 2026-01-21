@@ -1,3 +1,6 @@
+<!-- =========================
+FILE: index.html
+========================= -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -16,20 +19,21 @@
 <body>
     <!-- Header -->
     <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <h1 class="logo">Sistema de Visualização das Reinteradas</h1>
-                <nav class="header-nav">
-                    <a href="index.html" class="nav-link active">
-                        <i class="fas fa-home"></i> Página Inicial
-                    </a>
-                    <a href="admin.html" class="nav-link">
-                        <i class="fas fa-sign-in-alt"></i> Login (Admin)
-                    </a>
-                </nav>
-            </div>
+        <div class="header-content">
+          <!-- LOGO -->
+          <img 
+            src="https://www.estadao.com.br/resizer/v2/J23DYPPMFRFGPC5ZL2GB3JVBFE.png?quality=80&auth=da8c5b43d9f353d224f4353df31d9bf8e47c0815cc83eac6fd6d58576ea1b9b7&width=380"
+            alt="Logo SVR"
+            class="header-logo"
+          />
+      
+          <!-- TEXTOS -->
+          <div class="header-text">
+            <h1 class="header-title">Sistema S.V.R</h1>
+            <p class="header-subtitle">Sistema de Visualização das Reinteradas</p>
+          </div>
         </div>
-    </header>
+      </header>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -58,7 +62,6 @@
             </section>
 
             <section class="rankings-grid">
-
                 <!-- Ranking por ELEMENTO -->
                 <section class="card ranking-card">
                   <div class="ranking-header">
@@ -87,9 +90,10 @@
                     </div>
                   </div>
               
-                  <div id="rankingElemento" class="ranking-list"></div>
+                  <!-- ✅ Top 10 + scrollbar para ver restante -->
+                  <div id="rankingElemento" class="ranking-list ranking-scroll"></div>
                 </section>
-              
+
                 <!-- Ranking por CAUSA -->
                 <section class="card ranking-card">
                   <div class="ranking-header">
@@ -103,10 +107,16 @@
                       </button>
                     </div>
                   </div>
-              
-                  <div id="rankingCausa" class="ranking-list"></div>
+
+                  <!-- ✅ Pizza + lista clicável com scrollbar -->
+                  <div class="chart-block">
+                    <div class="chart-canvas-wrap">
+                      <canvas id="chartCausa"></canvas>
+                    </div>
+                    <div id="chartCausaList" class="chart-scroll-list"></div>
+                  </div>
                 </section>
-              
+
                 <!-- Ranking por ALIMENTADOR -->
                 <section class="card ranking-card">
                   <div class="ranking-header">
@@ -120,22 +130,18 @@
                       </button>
                     </div>
                   </div>
-              
-                  <div id="rankingAlimentador" class="ranking-list"></div>
-                </section>
-              
-              </section>
-              
 
-            <!-- Mapa de Calor -->
-            <!--<section class="map-section card">
-                <h2 class="section-title">
-                    <i class="fas fa-map-marked-alt"></i> Mapa de Calor - Ceará
-                </h2>
-                <div id="mapaCeara" class="map-container"></div>
+                  <!-- ✅ Radar top5 + lista clicável com scrollbar -->
+                  <div class="chart-block">
+                    <div class="chart-canvas-wrap">
+                      <canvas id="chartAlimentador"></canvas>
+                    </div>
+                    <div id="chartAlimentadorList" class="chart-scroll-list"></div>
+                  </div>
+                </section>
             </section>
         </div>
-    </main> -->
+    </main> 
 
     <!-- Modal - Detalhes Ranking -->
     <div id="modalDetalhes" class="modal">
@@ -203,9 +209,7 @@
     <script type="module" src="js/components/modal.js"></script>
     <script type="module" src="js/components/ranking.js"></script>
     <script type="module" src="js/components/charts.js"></script>
-    <script type="module" src="js/components/mapa.js"></script>
     <script type="module" src="js/utils/helpers.js"></script>
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
-
