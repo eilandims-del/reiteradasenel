@@ -516,3 +516,107 @@ body::before {
   color: var(--medium-gray);
   white-space: nowrap;
 }
+/* ===========================
+   DETALHES EM TABELA (HORIZONTAL)
+   =========================== */
+
+   .detalhes-conteudo{
+    display: block; /* antes estava grid */
+  }
+  
+  /* wrapper com scroll horizontal */
+  .detalhes-table-wrap{
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  
+  .detalhes-table-wrap::-webkit-scrollbar{
+    height: 10px;
+  }
+  .detalhes-table-wrap::-webkit-scrollbar-thumb{
+    background: rgba(30,124,232,.25);
+    border-radius: 10px;
+  }
+  .detalhes-table-wrap::-webkit-scrollbar-track{
+    background: rgba(0,0,0,.04);
+    border-radius: 10px;
+  }
+  
+  .detalhes-table{
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 980px; /* força layout em linha quando houver muitas colunas */
+    background: linear-gradient(135deg, var(--white) 0%, var(--lighter-gray) 100%);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px var(--shadow-sm);
+  }
+  
+  .detalhes-table thead th{
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    text-align: left;
+    padding: 12px 14px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: var(--white);
+    background: var(--gradient-primary);
+    white-space: nowrap;
+  }
+  
+  .detalhes-table tbody td{
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(30, 124, 232, 0.12);
+    font-weight: 600;
+    color: var(--dark-gray);
+    vertical-align: top;
+    white-space: nowrap;
+  }
+  
+  .detalhes-table tbody tr:hover td{
+    background: rgba(232, 244, 253, 0.6);
+  }
+  
+  .detalhes-table a{
+    color: var(--secondary-blue);
+    text-decoration: none;
+    font-weight: 800;
+  }
+  .detalhes-table a:hover{
+    text-decoration: underline;
+  }
+/* ===========================
+   HEADER: LEFT + ACTIONS
+   =========================== */
+   .header-content{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .header-left{
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+  }
+  
+  .header-actions{
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin-left: auto;
+  }
+  
+  @media (max-width: 700px){
+    .header-actions{
+      width: 100%;
+      justify-content: flex-start;
+    }
+  }
+    
