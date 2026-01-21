@@ -3,7 +3,7 @@
 // =========================
 /**
  * Charts - Chart.js
- * CAUSA: Pizza (Top 20) + lista clicável com scroll (todas)
+ * CAUSA: Pizza (Top 10) + lista clicável com scroll (todas, exceto bloqueadas)
  * ALIMENTADOR: Radar (Top 5) + lista clicável com scroll (todas)
  */
 
@@ -26,18 +26,33 @@ function getFieldValue(row, fieldName) {
   return '';
 }
 
+/** Causas a remover do card de CAUSA (case-insensitive) */
+const CAUSAS_BLOQUEADAS = new Set([
+  'defeito em conexao ramal concentrico',
+  'defeito em conexao',
+  'defeito em ramal de ligação',
+  'defeito em ramal de ligacao',
+  'defeito em conexao de medidor'
+].map(x => x.trim().toLowerCase()));
+
 function buildRankingWithOccur(data, field) {
   const counts = new Map();
   const ocorrMap = new Map();
 
   data.forEach(row => {
-    const value = String(getFieldValue(row, field) || '').trim();
-    if (!value) return;
+    const valueRaw = String(getFieldValue(row, field) || '').trim();
+    if (!valueRaw) return;
 
-    counts.set(value, (counts.get(value) || 0) + 1);
+    // Filtro especial para CAUSA
+    if (normalizeKey(field) === 'causa') {
+      const v = valueRaw.trim().toLowerCase();
+      if (CAUSAS_BLOQUEADAS.has(v)) return;
+    }
 
-    if (!ocorrMap.has(value)) ocorrMap.set(value, []);
-    ocorrMap.get(value).push(row);
+    counts.set(valueRaw, (counts.get(valueRaw) || 0) + 1);
+
+    if (!ocorrMap.has(valueRaw)) ocorrMap.set(valueRaw, []);
+    ocorrMap.get(valueRaw).push(row);
   });
 
   return Array.from(counts.entries())
@@ -86,11 +101,11 @@ function renderScrollList(containerId, ranking, tipo) {
 }
 
 /**
- * CAUSA - Pizza (Top 20)
+ * CAUSA - Pizza (Top 10)
  */
 export function renderChartCausa(data) {
   const rankingAll = buildRankingWithOccur(data, 'CAUSA');
-  const top = rankingAll.slice(0, 20);
+  const top = rankingAll.slice(0, 10);
 
   const canvas = document.getElementById('chartCausa');
   if (!canvas) return;
@@ -128,7 +143,7 @@ export function renderChartCausa(data) {
         legend: { display: false },
         title: {
           display: true,
-          text: 'Top 20 Causas',
+          text: 'Top 10 Causas',
           font: { size: 18, weight: '700', family: "'Inter', 'Segoe UI', sans-serif" },
           color: '#0A4A8C',
           padding: { top: 10, bottom: 10 }
@@ -161,7 +176,7 @@ export function renderChartCausa(data) {
     }
   });
 
-  // Lista clicável com scrollbar (todas as causas)
+  // Lista clicável com scrollbar (todas as causas, já filtradas)
   renderScrollList('chartCausaList', rankingAll, 'CAUSA');
 }
 
@@ -247,7 +262,6 @@ export function renderChartAlimentador(data) {
         }
       },
       onClick: (evt, elements) => {
-        // Radar não retorna “slice”, mas retorna ponto
         if (!elements || !elements.length) return;
         const idx = elements[0].index;
         const name = labels[idx];
@@ -258,7 +272,6 @@ export function renderChartAlimentador(data) {
     }
   });
 
-  // Lista clicável com scrollbar (todos os alimentadores)
   renderScrollList('chartAlimentadorList', rankingAll, 'ALIMENTADOR');
 }
 

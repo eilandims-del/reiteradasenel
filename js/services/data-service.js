@@ -35,27 +35,38 @@ export function generateRankingElemento(data) {
 
 /**
  * Gerar ranking por CAUSA
- * OTIMIZADO: Limita a top 20 para melhor performance com grandes volumes
+ * Ajustes:
+ * - remove causas desnecessárias
+ * - limita top 10
  */
 export function generateRankingCausa(data) {
     const causas = {};
-    
-    // Otimização: processar em chunks para não travar com 10k+ registros
+
+    const bloqueadas = new Set([
+        'DEFEITO EM CONEXAO RAMAL CONCENTRICO',
+        'DEFEITO EM CONEXAO',
+        'DEFEITO EM RAMAL DE LIGAÇÃO',
+        'DEFEITO EM RAMAL DE LIGACAO',
+        'DEFEITO EM CONEXAO DE MEDIDOR',
+    ].map(x => x.trim().toUpperCase()));
+
     const CHUNK_SIZE = 1000;
     for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
         chunk.forEach(item => {
-            const causa = item.CAUSA || item['CAUSA'] || 'Não especificado';
-            causas[causa] = (causas[causa] || 0) + 1;
+            const causaRaw = item.CAUSA || item['CAUSA'] || 'Não especificado';
+            const causaNorm = String(causaRaw).trim().toUpperCase();
+
+            if (bloqueadas.has(causaNorm)) return;
+
+            causas[causaRaw] = (causas[causaRaw] || 0) + 1;
         });
     }
 
-    const ranking = Object.entries(causas)
+    return Object.entries(causas)
         .map(([causa, count]) => ({ causa, count }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 20); // Top 20 (aumentado de 10 para melhor visualização)
-
-    return ranking;
+        .slice(0, 10); // Top 10
 }
 
 /**

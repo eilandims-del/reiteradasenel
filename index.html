@@ -20,13 +20,13 @@ FILE: index.html
     <!-- Header -->
     <header class="header">
         <div class="header-content">
-          <!-- LOGO -->
-          <img 
-            src="https://www.estadao.com.br/resizer/v2/J23DYPPMFRFGPC5ZL2GB3JVBFE.png?quality=80&auth=da8c5b43d9f353d224f4353df31d9bf8e47c0815cc83eac6fd6d58576ea1b9b7&width=380"
-            alt="Logo SVR"
+          <!-- LOGO (LOCAL) -->
+          <img
+            src="assets/enel.png"
+            alt="ENEL Brasil"
             class="header-logo"
           />
-      
+
           <!-- TEXTOS -->
           <div class="header-text">
             <h1 class="header-title">Sistema S.V.R</h1>
@@ -68,7 +68,7 @@ FILE: index.html
                     <h2 class="section-title">
                       <i class="fas fa-trophy"></i> Ranking por ELEMENTO
                     </h2>
-              
+
                     <div class="ranking-controls">
                       <!-- filtros -->
                       <div class="ranking-filters">
@@ -76,21 +76,20 @@ FILE: index.html
                         <button id="btnFiltroFusivel" class="btn btn-secondary btn-sm">FUSÍVEL</button>
                         <button id="btnFiltroOutros" class="btn btn-secondary btn-sm">OUTROS</button>
                       </div>
-              
+
                       <!-- busca -->
                       <div class="ranking-search">
                         <input id="searchElemento" type="text" placeholder="Pesquisar ELEMENTO..." />
                         <button id="btnClearSearchElemento" class="btn btn-secondary btn-sm" title="Limpar">×</button>
                       </div>
-              
-                      <!-- copiar -->
+
+                      <!-- copiar (mantém só no ELEMENTO) -->
                       <button id="copiarRankingElemento" class="btn btn-whatsapp btn-sm" title="Copiar ranking ELEMENTO">
                         <i class="fab fa-whatsapp"></i> COPIAR
                       </button>
                     </div>
                   </div>
-              
-                  <!-- ✅ Top 10 + scrollbar para ver restante -->
+
                   <div id="rankingElemento" class="ranking-list ranking-scroll"></div>
                 </section>
 
@@ -100,15 +99,9 @@ FILE: index.html
                     <h2 class="section-title">
                       <i class="fas fa-trophy"></i> Ranking por CAUSA
                     </h2>
-              
-                    <div class="ranking-controls">
-                      <button id="copiarRankingCausa" class="btn btn-whatsapp btn-sm" title="Copiar ranking CAUSA">
-                        <i class="fab fa-whatsapp"></i> COPIAR
-                      </button>
-                    </div>
+                    <!-- REMOVIDO botão COPIAR -->
                   </div>
 
-                  <!-- ✅ Pizza + lista clicável com scrollbar -->
                   <div class="chart-block">
                     <div class="chart-canvas-wrap">
                       <canvas id="chartCausa"></canvas>
@@ -123,15 +116,9 @@ FILE: index.html
                     <h2 class="section-title">
                       <i class="fas fa-trophy"></i> Ranking por ALIMENTADOR
                     </h2>
-              
-                    <div class="ranking-controls">
-                      <button id="copiarRankingAlimentador" class="btn btn-whatsapp btn-sm" title="Copiar ranking ALIMENTADOR">
-                        <i class="fab fa-whatsapp"></i> COPIAR
-                      </button>
-                    </div>
+                    <!-- REMOVIDO botão COPIAR -->
                   </div>
 
-                  <!-- ✅ Radar top5 + lista clicável com scrollbar -->
                   <div class="chart-block">
                     <div class="chart-canvas-wrap">
                       <canvas id="chartAlimentador"></canvas>
@@ -141,7 +128,7 @@ FILE: index.html
                 </section>
             </section>
         </div>
-    </main> 
+    </main>
 
     <!-- Modal - Detalhes Ranking -->
     <div id="modalDetalhes" class="modal">
@@ -158,9 +145,7 @@ FILE: index.html
                 </div>
             </div>
             <div class="modal-body">
-                <div id="detalhesConteudo" class="detalhes-conteudo">
-                    <!-- Conteúdo será preenchido dinamicamente -->
-                </div>
+                <div id="detalhesConteudo" class="detalhes-conteudo"></div>
             </div>
         </div>
     </div>
@@ -176,9 +161,7 @@ FILE: index.html
             </div>
             <div class="modal-body">
                 <p>Selecione as colunas adicionais para exibir:</p>
-                <div id="listaColunas" class="colunas-lista">
-                    <!-- Checkboxes serão preenchidos dinamicamente -->
-                </div>
+                <div id="listaColunas" class="colunas-lista"></div>
                 <div class="modal-footer">
                     <button id="confirmarInfo" class="btn btn-primary">
                         <i class="fas fa-check"></i> Confirmar

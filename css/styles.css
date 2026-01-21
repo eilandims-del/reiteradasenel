@@ -1,14 +1,8 @@
 /* =========================
 FILE: css/styles.css
-(cole este arquivo inteiro no lugar do antigo)
 ========================= */
 
-/* ============================================
-   Sistema de Visualização das Reinteradas - ENEL
-   Estilos Corporativos - Design Profissional
-   ============================================ */
-
-   :root {
+:root {
     --primary-blue: #0A4A8C;
     --secondary-blue: #1E7CE8;
     --electric-blue: #00B4FF;
@@ -59,7 +53,7 @@ body::before {
     position: fixed;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background-image: 
+    background-image:
         radial-gradient(circle at 20% 50%, rgba(30, 124, 232, 0.03) 0%, transparent 50%),
         radial-gradient(circle at 80% 80%, rgba(0, 180, 255, 0.03) 0%, transparent 50%),
         radial-gradient(circle at 40% 20%, rgba(10, 74, 140, 0.02) 0%, transparent 50%);
@@ -73,7 +67,7 @@ body::before {
 .header {
     background: var(--gradient-primary);
     color: var(--white);
-    padding: 1.8rem 0;
+    padding: 1.5rem 0;
     box-shadow: 0 4px 20px var(--shadow-lg);
     position: relative;
     overflow: hidden;
@@ -83,7 +77,7 @@ body::before {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: 
+    background:
         radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
         radial-gradient(circle at 80% 80%, rgba(0, 180, 255, 0.15) 0%, transparent 50%);
     pointer-events: none;
@@ -91,18 +85,25 @@ body::before {
 
 .header-content { position: relative; z-index: 1; }
 
+/* ======= AJUSTE: logo + títulos no mesmo lado ======= */
 .header-content {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start; /* antes era space-between */
     align-items: center;
+    gap: 1.25rem;
     flex-wrap: wrap;
-    gap: 1rem;
 }
 
-.header .header-logo{ height: 48px; max-width: 160px; object-fit: contain; }
-.header .header-text{ display:flex; flex-direction:column; line-height: 1.2; }
-.header .header-title{ font-size: 1.6rem; font-weight: 800; margin: 0; color: var(--white); }
-.header .header-subtitle{ font-size: .95rem; opacity: .9; margin: 0; color: var(--white); }
+/* ======= AJUSTE: logo grande ======= */
+.header .header-logo{
+    height: 92px;
+    max-width: 320px;
+    object-fit: contain;
+}
+
+.header .header-text{ display:flex; flex-direction:column; line-height: 1.15; }
+.header .header-title{ font-size: 1.75rem; font-weight: 800; margin: 0; color: var(--white); }
+.header .header-subtitle{ font-size: 1rem; opacity: .92; margin: 0; color: var(--white); }
 
 .card {
     background: var(--gradient-card);
@@ -214,7 +215,6 @@ body::before {
 .date-input:focus { outline: none; border-color: var(--secondary-blue); box-shadow: 0 4px 12px rgba(30, 124, 232, 0.15); transform: translateY(-2px); }
 .date-input:hover { border-color: var(--electric-blue); }
 
-/* Ranking */
 .ranking-header {
     display: flex;
     justify-content: space-between;
@@ -310,7 +310,7 @@ body::before {
     min-width: 180px;
 }
 
-/* Modal / Toast etc (mantido do seu arquivo anterior) */
+/* Modal / Toast etc */
 .modal {
     display: none;
     position: fixed;
@@ -423,64 +423,6 @@ body::before {
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideDown { from { transform: translateY(-50px) scale(0.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
 
-.ocorrencia-group {
-    background: linear-gradient(135deg, var(--lighter-gray) 0%, var(--white) 100%);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 2px 8px var(--shadow-sm);
-    border: 1px solid rgba(30, 124, 232, 0.1);
-    transition: all 0.3s ease;
-}
-
-.ocorrencia-group:hover {
-    box-shadow: 0 4px 16px var(--shadow-md);
-    transform: translateY(-2px);
-    border-color: rgba(30, 124, 232, 0.2);
-}
-
-.ocorrencia-group h3 {
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-weight: 700;
-    font-size: 1.3rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid rgba(30, 124, 232, 0.15);
-}
-
-.colunas-lista {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-.coluna-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    background-color: var(--light-gray);
-    border-radius: 5px;
-    transition: all 0.3s ease;
-}
-
-.coluna-checkbox input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-    accent-color: var(--secondary-blue);
-    border-radius: 4px;
-}
-
-.coluna-checkbox:hover {
-    background-color: var(--light-blue);
-    transform: translateX(4px);
-}
-
 @media (max-width: 768px) {
     .filter-controls { flex-direction: column; }
     .filter-group { width: 100%; }
@@ -488,16 +430,16 @@ body::before {
     .modal-content { width: 95%; max-height: 95vh; }
 }
 
+/* Header mobile */
 @media (max-width: 600px) {
     .header-content { flex-direction: column; align-items: flex-start; }
-    .header-logo { height: 40px; }
-    .header-title { font-size: 1.3rem; }
+    .header .header-logo { height: 80px; max-width: 260px; }
+    .header-title { font-size: 1.4rem; }
 }
 
 /* ===========================
-   NOVO: Scroll + Charts Lists
+   Scroll + Charts Lists
    =========================== */
-
 .ranking-scroll{
   max-height: 420px;
   overflow-y: auto;
