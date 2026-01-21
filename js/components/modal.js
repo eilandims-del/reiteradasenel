@@ -80,7 +80,7 @@ export function fillDetailsModal(elemento, ocorrencias, selectedColumns = []) {
     { key: 'ELEMENTO', label: 'ELEMENTO' },
     { key: 'DATA', label: 'DATA' },
     { key: 'CAUSA', label: 'CAUSA' },
-    { key: 'CLI AFET', label: 'CLI AFET' },
+    { key: 'CLI. AFE', label: 'CLI. AFE' },
     { key: 'ALIMENT.', label: 'ALIMENTADOR' },
     { key: 'CONJUNTO', label: 'CONJUNTO' }
   ];

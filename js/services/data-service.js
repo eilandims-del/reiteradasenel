@@ -10,19 +10,21 @@ import { DataService } from './firebase-service.js';
 export function generateRankingElemento(data) {
     const elementos = {};
   
-    const getCliAfet = (item) => {
+    const getCliAfe = (item) => {
       if (!item) return 0;
   
-      // tenta várias chaves possíveis
+      // tenta variações comuns da sua coluna
       const raw =
-        item['CLI AFET'] ??
-        item['CLI_AFET'] ??
-        item['CLI_AFET.'] ??
-        item['CLIAFET'] ??
+        item['CLI. AFE'] ??
+        item['CLI AFE'] ??
+        item['CLI.AFE'] ??
+        item['CLIAFE'] ??
+        item['CLI_AFE'] ??
         item['CLI'] ??
-        item['CLI_AFETADO'] ??
-        item['CLI AFETADO'];
+        item['CLI AFETADO'] ??
+        item['CLI. AFETADO'];
   
+      // extrai número com segurança
       const n = parseInt(String(raw ?? '').replace(/[^\d\-]/g, ''), 10);
       return Number.isFinite(n) ? n : 0;
     };
@@ -38,13 +40,12 @@ export function generateRankingElemento(data) {
     const ranking = Object.entries(elementos)
       // só elementos com repetição (>=2)
       .filter(([_, ocorrencias]) => ocorrencias.length > 1)
-      // regra: se começa com T, precisa ter algum CLI AFET >= 3
+      // regra: se começa com T, precisa ter algum CLI. AFE >= 3
       .filter(([elemento, ocorrencias]) => {
         const el = String(elemento).trim().toUpperCase();
         if (!el.startsWith('T')) return true;
   
-        // entra se QUALQUER ocorrência tiver CLI AFET >= 3
-        return ocorrencias.some(o => getCliAfet(o) >= 3);
+        return ocorrencias.some(o => getCliAfe(o) >= 3);
       })
       .map(([elemento, ocorrencias]) => ({
         elemento,
@@ -55,6 +56,7 @@ export function generateRankingElemento(data) {
   
     return ranking;
   }
+  
   
 
 /**
