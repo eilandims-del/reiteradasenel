@@ -505,7 +505,53 @@ body::before {
     position: relative;
     z-index: 1;
 }
-
+.rankings-grid{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  @media (max-width: 1200px){ .rankings-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 768px){ .rankings-grid{ grid-template-columns: 1fr; } }
+  
+  .ranking-card .ranking-header{
+    display:flex;
+    flex-direction: column;
+    gap: .75rem;
+  }
+  
+  .ranking-controls{
+    display:flex;
+    gap:.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .ranking-filters{
+    display:flex;
+    gap:.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .ranking-filters .btn.active{
+    border: 2px solid var(--secondary-blue);
+    transform: translateY(-1px);
+  }
+  
+  .ranking-search{
+    display:flex;
+    gap:.4rem;
+    align-items:center;
+  }
+  
+  .ranking-search input{
+    height: 32px;
+    padding: 0 .6rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    min-width: 180px;
+  }
+  
 /* Gráficos */
 .charts-grid {
     display: grid;

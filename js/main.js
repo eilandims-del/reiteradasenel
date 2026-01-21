@@ -4,7 +4,7 @@
 
 import { DataService } from './services/firebase-service.js';
 import { filterByDateRange, getAllColumns, getOcorrenciasByElemento } from './services/data-service.js';
-import { renderRankingElemento, generateRankingText, setElementoFilter } from './components/ranking.js';
+import { renderRankingElemento, setElementoFilter, setElementoSearch } from './components/ranking.js';
 import { updateCharts } from './components/charts.js';
 /** import { updateHeatmap, initMap } from './components/mapa.js';  */
 import { openModal, closeModal, initModalEvents, fillDetailsModal } from './components/modal.js';
@@ -59,75 +59,40 @@ function initEventListeners() {
     const btnTrafo = document.getElementById('btnFiltroTrafo');
     const btnFusivel = document.getElementById('btnFiltroFusivel');
     const btnOutros = document.getElementById('btnFiltroOutros');
-
-    const setActive = (activeBtn) => {
-        [btnTrafo, btnFusivel, btnOutros].forEach(b => b?.classList.remove('active'));
-        activeBtn?.classList.add('active');
-    };
-
-    if (btnTrafo) {
-        btnTrafo.addEventListener('click', () => {
-            setElementoFilter('TRAFO');
-            setActive(btnTrafo);
-        });
-    }
-
-    if (btnFusivel) {
-        btnFusivel.addEventListener('click', () => {
-            setElementoFilter('FUSIVEL');
-            setActive(btnFusivel);
-        });
-    }
-
-    if (btnOutros) {
-        btnOutros.addEventListener('click', () => {
-            setElementoFilter('OUTROS');
-            setActive(btnOutros);
-        });
-    }
-
-// Definir um padrão visual inicial (opcional)
-setActive(btnTrafo);
-
     
-
-    // Modal de detalhes
-    const fecharModal = document.getElementById('fecharModal');
-    if (fecharModal) {
-        fecharModal.addEventListener('click', () => {
-            closeModal('modalDetalhes');
-        });
-    }
-
-    // Modal adicionar info
-    const btnAdicionarInfo = document.getElementById('btnAdicionarInfo');
-    const fecharModalInfo = document.getElementById('fecharModalInfo');
-    const confirmarInfo = document.getElementById('confirmarInfo');
-    const cancelarInfo = document.getElementById('cancelarInfo');
-
-    if (btnAdicionarInfo) {
-        btnAdicionarInfo.addEventListener('click', () => {
-            openModalAddInfo();
-        });
-    }
-
-    if (fecharModalInfo) {
-        fecharModalInfo.addEventListener('click', () => {
-            closeModal('modalAdicionarInfo');
-        });
-    }
-
-    if (cancelarInfo) {
-        cancelarInfo.addEventListener('click', () => {
-            closeModal('modalAdicionarInfo');
-        });
-    }
-
-    if (confirmarInfo) {
-        confirmarInfo.addEventListener('click', () => {
-            confirmAddInfo();
-        });
-    }
+    const setActive = (activeBtn) => {
+      [btnTrafo, btnFusivel, btnOutros].forEach(b => b?.classList.remove('active'));
+      activeBtn?.classList.add('active');
+    };
+    
+    btnTrafo?.addEventListener('click', () => { setElementoFilter('TRAFO'); setActive(btnTrafo); });
+    btnFusivel?.addEventListener('click', () => { setElementoFilter('FUSIVEL'); setActive(btnFusivel); });
+    btnOutros?.addEventListener('click', () => { setElementoFilter('OUTROS'); setActive(btnOutros); });
+    
+    // estado inicial visual
+    setActive(btnTrafo);
+    
+    // busca com debounce
+    const searchElemento = document.getElementById('searchElemento');
+    const btnClearSearch = document.getElementById('btnClearSearchElemento');
+    
+    let searchDebounce = null;
+    
+    searchElemento?.addEventListener('input', (e) => {
+      clearTimeout(searchDebounce);
+      const value = e.target.value;
+    
+      searchDebounce = setTimeout(() => {
+        setElementoSearch(value);
+      }, 180);
+    });
+    
+    btnClearSearch?.addEventListener('click', () => {
+      if (searchElemento) searchElemento.value = '';
+      setElementoSearch('');
+      searchElemento?.focus();
+    });
+    
 }
 
 /**
@@ -165,6 +130,7 @@ function renderAll() {
     requestAnimationFrame(() => {
         renderRankingElemento(currentData);
     });
+    
     
     requestAnimationFrame(() => {
         updateCharts(currentData);

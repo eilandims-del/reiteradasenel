@@ -57,54 +57,75 @@
                 </div>
             </section>
 
-            <!-- Ranking Geral - Elemento -->
-            <section class="ranking-section card">
-                <div class="ranking-header">
+            <section class="rankings-grid">
+
+                <!-- Ranking por ELEMENTO -->
+                <section class="card ranking-card">
+                  <div class="ranking-header">
                     <h2 class="section-title">
                       <i class="fas fa-trophy"></i> Ranking por ELEMENTO
                     </h2>
-                  
-                    <!-- FILTROS -->
-                    <div class="ranking-filters">
-                      <button id="btnFiltroTrafo" class="btn btn-secondary btn-sm">TRAFO</button>
-                      <button id="btnFiltroFusivel" class="btn btn-secondary btn-sm">FUSÍVEL</button>
-                      <button id="btnFiltroOutros" class="btn btn-secondary btn-sm">OUTROS</button>
+              
+                    <div class="ranking-controls">
+                      <!-- filtros -->
+                      <div class="ranking-filters">
+                        <button id="btnFiltroTrafo" class="btn btn-secondary btn-sm">TRAFO</button>
+                        <button id="btnFiltroFusivel" class="btn btn-secondary btn-sm">FUSÍVEL</button>
+                        <button id="btnFiltroOutros" class="btn btn-secondary btn-sm">OUTROS</button>
+                      </div>
+              
+                      <!-- busca -->
+                      <div class="ranking-search">
+                        <input id="searchElemento" type="text" placeholder="Pesquisar ELEMENTO..." />
+                        <button id="btnClearSearchElemento" class="btn btn-secondary btn-sm" title="Limpar">×</button>
+                      </div>
+              
+                      <!-- copiar -->
+                      <button id="copiarRankingElemento" class="btn btn-whatsapp btn-sm" title="Copiar ranking ELEMENTO">
+                        <i class="fab fa-whatsapp"></i> COPIAR
+                      </button>
                     </div>
-                  
-                    <button id="copiarRanking" class="btn btn-whatsapp" title="Copiar ranking para WhatsApp">
-                      <i class="fab fa-whatsapp"></i> COPIAR
-                    </button>
                   </div>
-                  
-                <div id="rankingElemento" class="ranking-list">
-                    <div class="loading-spinner">
-                        <i class="fas fa-spinner fa-spin"></i> Carregando dados...
-                    </div>
-                </div>
-            </section>
-
-            <!-- Gráficos -->
-            <div class="charts-grid">
+              
+                  <div id="rankingElemento" class="ranking-list"></div>
+                </section>
+              
                 <!-- Ranking por CAUSA -->
-                <section class="chart-section card">
+                <section class="card ranking-card">
+                  <div class="ranking-header">
                     <h2 class="section-title">
-                        <i class="fas fa-chart-pie"></i> Ranking por CAUSA
+                      <i class="fas fa-trophy"></i> Ranking por CAUSA
                     </h2>
-                    <div class="chart-container">
-                        <canvas id="chartCausa"></canvas>
+              
+                    <div class="ranking-controls">
+                      <button id="copiarRankingCausa" class="btn btn-whatsapp btn-sm" title="Copiar ranking CAUSA">
+                        <i class="fab fa-whatsapp"></i> COPIAR
+                      </button>
                     </div>
+                  </div>
+              
+                  <div id="rankingCausa" class="ranking-list"></div>
                 </section>
-
+              
                 <!-- Ranking por ALIMENTADOR -->
-                <section class="chart-section card">
+                <section class="card ranking-card">
+                  <div class="ranking-header">
                     <h2 class="section-title">
-                        <i class="fas fa-chart-line"></i> Ranking por ALIMENTADOR
+                      <i class="fas fa-trophy"></i> Ranking por ALIMENTADOR
                     </h2>
-                    <div class="chart-container">
-                        <canvas id="chartAlimentador"></canvas>
+              
+                    <div class="ranking-controls">
+                      <button id="copiarRankingAlimentador" class="btn btn-whatsapp btn-sm" title="Copiar ranking ALIMENTADOR">
+                        <i class="fab fa-whatsapp"></i> COPIAR
+                      </button>
                     </div>
+                  </div>
+              
+                  <div id="rankingAlimentador" class="ranking-list"></div>
                 </section>
-            </div>
+              
+              </section>
+              
 
             <!-- Mapa de Calor -->
             <!--<section class="map-section card">
