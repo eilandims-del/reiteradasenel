@@ -4,9 +4,9 @@
 
 import { DataService } from './services/firebase-service.js';
 import { filterByDateRange, getAllColumns, getOcorrenciasByElemento } from './services/data-service.js';
-import { renderRankingElemento, generateRankingText } from './components/ranking.js';
+import { renderRankingElemento, generateRankingText, setElementoFilter } from './components/ranking.js';
 import { updateCharts } from './components/charts.js';
-import { updateHeatmap, initMap } from './components/mapa.js';
+/** import { updateHeatmap, initMap } from './components/mapa.js';  */
 import { openModal, closeModal, initModalEvents, fillDetailsModal } from './components/modal.js';
 import { copyToClipboard, showToast, debounce } from './utils/helpers.js';
 
@@ -20,7 +20,7 @@ async function init() {
     // Inicializar eventos
     initModalEvents();
     initEventListeners();
-    initMap();
+    /** initMap(); */
 
     // Carregar dados
     await loadData();
@@ -56,6 +56,40 @@ function initEventListeners() {
             }
         });
     }
+    const btnTrafo = document.getElementById('btnFiltroTrafo');
+    const btnFusivel = document.getElementById('btnFiltroFusivel');
+    const btnOutros = document.getElementById('btnFiltroOutros');
+
+    const setActive = (activeBtn) => {
+        [btnTrafo, btnFusivel, btnOutros].forEach(b => b?.classList.remove('active'));
+        activeBtn?.classList.add('active');
+    };
+
+    if (btnTrafo) {
+        btnTrafo.addEventListener('click', () => {
+            setElementoFilter('TRAFO');
+            setActive(btnTrafo);
+        });
+    }
+
+    if (btnFusivel) {
+        btnFusivel.addEventListener('click', () => {
+            setElementoFilter('FUSIVEL');
+            setActive(btnFusivel);
+        });
+    }
+
+    if (btnOutros) {
+        btnOutros.addEventListener('click', () => {
+            setElementoFilter('OUTROS');
+            setActive(btnOutros);
+        });
+    }
+
+// Definir um padrão visual inicial (opcional)
+setActive(btnTrafo);
+
+    
 
     // Modal de detalhes
     const fecharModal = document.getElementById('fecharModal');
@@ -136,9 +170,9 @@ function renderAll() {
         updateCharts(currentData);
     });
     
-    requestAnimationFrame(() => {
+    /**requestAnimationFrame(() => {
         updateHeatmap(currentData);
-    });
+    }); */
     
     console.log('[RENDER] Renderização iniciada (assíncrona)');
 }
@@ -157,7 +191,7 @@ const applyFiltersDebounced = debounce(() => {
     requestAnimationFrame(() => {
         renderRankingElemento(filteredData);
         updateCharts(filteredData);
-        updateHeatmap(filteredData);
+        /** updateHeatmap(filteredData); */
         
         showToast(`Filtro aplicado: ${filteredData.length} registro(s) encontrado(s).`, 'success');
     });

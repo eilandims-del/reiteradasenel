@@ -61,12 +61,21 @@
             <section class="ranking-section card">
                 <div class="ranking-header">
                     <h2 class="section-title">
-                        <i class="fas fa-trophy"></i> Ranking por ELEMENTO
+                      <i class="fas fa-trophy"></i> Ranking por ELEMENTO
                     </h2>
+                  
+                    <!-- FILTROS -->
+                    <div class="ranking-filters">
+                      <button id="btnFiltroTrafo" class="btn btn-secondary btn-sm">TRAFO</button>
+                      <button id="btnFiltroFusivel" class="btn btn-secondary btn-sm">FUSÍVEL</button>
+                      <button id="btnFiltroOutros" class="btn btn-secondary btn-sm">OUTROS</button>
+                    </div>
+                  
                     <button id="copiarRanking" class="btn btn-whatsapp" title="Copiar ranking para WhatsApp">
-                        <i class="fab fa-whatsapp"></i> COPIAR
+                      <i class="fab fa-whatsapp"></i> COPIAR
                     </button>
-                </div>
+                  </div>
+                  
                 <div id="rankingElemento" class="ranking-list">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin"></i> Carregando dados...
@@ -98,14 +107,14 @@
             </div>
 
             <!-- Mapa de Calor -->
-            <section class="map-section card">
+            <!--<section class="map-section card">
                 <h2 class="section-title">
                     <i class="fas fa-map-marked-alt"></i> Mapa de Calor - Ceará
                 </h2>
                 <div id="mapaCeara" class="map-container"></div>
             </section>
         </div>
-    </main>
+    </main> -->
 
     <!-- Modal - Detalhes Ranking -->
     <div id="modalDetalhes" class="modal">

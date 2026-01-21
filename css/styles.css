@@ -417,6 +417,17 @@ body::before {
     gap: 1rem;
 }
 
+.ranking-filters{
+    display:flex;
+    gap:.5rem;
+    flex-wrap:wrap;
+  }
+  
+  .ranking-filters .btn.active{
+    border: 2px solid var(--secondary-blue);
+    transform: translateY(-1px);
+  }
+  
 .ranking-list {
     display: flex;
     flex-direction: column;
