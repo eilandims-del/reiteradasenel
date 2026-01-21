@@ -4,7 +4,7 @@
 
 import { DataService } from './services/firebase-service.js';
 import { filterByDateRange, getAllColumns, getOcorrenciasByElemento } from './services/data-service.js';
-import { renderRankingElemento, setElementoFilter, setElementoSearch } from './components/ranking.js';
+import { updateRanking, generateRankingText, setElementoFilter, setElementoSearch } from './components/ranking.js';
 import { updateCharts } from './components/charts.js';
 /** import { updateHeatmap, initMap } from './components/mapa.js';  */
 import { openModal, closeModal, initModalEvents, fillDetailsModal } from './components/modal.js';
@@ -30,17 +30,17 @@ async function init() {
  * Inicializar event listeners
  */
 function initEventListeners() {
+    // Abrir/confirmar info adicional
+    document.getElementById('btnAdicionarInfo')?.addEventListener('click', openModalAddInfo);
+    document.getElementById('confirmarAdicionarInfo')?.addEventListener('click', confirmAddInfo);
+
     // Filtro de data
     const aplicarFiltro = document.getElementById('aplicarFiltro');
     const limparFiltro = document.getElementById('limparFiltro');
-    
-    if (aplicarFiltro) {
-        aplicarFiltro.addEventListener('click', applyFilters);
-    }
-    
-    if (limparFiltro) {
-        limparFiltro.addEventListener('click', clearFilters);
-    }
+
+    aplicarFiltro?.addEventListener('click', applyFilters);
+    limparFiltro?.addEventListener('click', clearFilters);
+
 
     // Copiar ranking
     const copiarRanking = document.getElementById('copiarRanking');
@@ -128,9 +128,8 @@ function renderAll() {
     
     // Renderizar assincronamente usando requestAnimationFrame
     requestAnimationFrame(() => {
-        renderRankingElemento(currentData);
+        updateRanking(currentData);
     });
-    
     
     requestAnimationFrame(() => {
         updateCharts(currentData);
@@ -155,10 +154,8 @@ const applyFiltersDebounced = debounce(() => {
     
     // Renderizar assincronamente para não travar a UI
     requestAnimationFrame(() => {
-        renderRankingElemento(filteredData);
+        updateRanking(filteredData);
         updateCharts(filteredData);
-        /** updateHeatmap(filteredData); */
-        
         showToast(`Filtro aplicado: ${filteredData.length} registro(s) encontrado(s).`, 'success');
     });
 }, 300); // 300ms de debounce
@@ -183,10 +180,10 @@ function clearFilters() {
  */
 function openModalAddInfo() {
     const allColumns = getAllColumns(currentData);
-    const fixedColumns = ['INCIDENCIA', 'CAUSA', 'ALIMENT.', 'DATA', 'ELEMENTO', 'CONJUNTO'];
+    const fixedColumns = ['INCIDENCIA', 'CAUSA', 'ALIMENT', 'DATA', 'ELEMENTO', 'CONJUNTO'];
     const nonFixedColumns = allColumns.filter(col => {
-        const normalized = col.toUpperCase().trim().replace(/\./g, '');
-        return !fixedColumns.includes(normalized);
+    const normalized = col.toUpperCase().trim().replace(/\./g, '');
+    return !fixedColumns.includes(normalized);
     });
 
     const listaColunas = document.getElementById('listaColunas');

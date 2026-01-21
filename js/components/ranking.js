@@ -19,7 +19,7 @@ export function renderRankingCausa(data){
   }
   
   export function renderRankingAlimentador(data){
-    const ranking = generateRankingByField(data, 'ALIMENTADOR');
+    const ranking = generateRankingByField(data, 'ALIMENT.');
     currentRankingAlimentadorData = ranking;
     renderRankingGeneric('rankingAlimentador', ranking, (name, ocorrencias) => openGenericDetails('ALIMENTADOR', name, ocorrencias));
   }
@@ -211,18 +211,28 @@ export function updateRanking(data) {
     renderRankingAlimentador(data);
 }
 
-function getFieldValue(row, fieldName) {
+function normalizeKey(k) {
+    return String(k || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\./g, ''); // remove pontos (ALIMENT. -> aliment)
+  }
+  
+  function getFieldValue(row, fieldName) {
     if (!row) return '';
+  
     // tenta direto
     if (row[fieldName] != null) return row[fieldName];
   
-    // tenta case-insensitive
-    const target = String(fieldName).toLowerCase();
-    const foundKey = Object.keys(row).find(k => String(k).toLowerCase() === target);
+    const target = normalizeKey(fieldName);
+  
+    // tenta achar chave equivalente ignorando case/espacos/pontos
+    const foundKey = Object.keys(row).find(k => normalizeKey(k) === target);
     if (foundKey) return row[foundKey];
   
     return '';
   }
+  
   
   function generateRankingByField(data, field) {
     const counts = new Map();
