@@ -791,3 +791,190 @@ body::before {
     text-align: center;
   }
 }
+/* =========================================
+   OVERRIDES FINAIS - HEADER + MODAL (MOBILE)
+   Cole no FINAL do css/styles.css
+========================================= */
+
+/* ---------- HEADER: profissional + responsivo ---------- */
+
+.header{
+  padding: 1.1rem 0; /* mantém visual “pro” */
+}
+
+.header-content{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Lado esquerdo */
+.header-left{
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Logo maior e estável */
+.header .header-logo{
+  height: clamp(92px, 7vw, 132px);   /* AUMENTA BEM */
+  max-width: 420px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Textos */
+.header .header-text{
+  min-width: 0;
+}
+
+.header .header-title{
+  font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+  line-height: 1.08;
+  margin: 0;
+}
+
+.header .header-subtitle{
+  font-size: clamp(.9rem, 1.4vw, 1.05rem);
+  margin: 0;
+  opacity: .95;
+}
+
+/* Botões do header */
+.header-actions{
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex: 0 0 auto;
+}
+
+.header-actions .btn{
+  padding: .55rem .9rem;
+  font-size: .9rem;
+}
+
+/* ---------- MOBILE: layout perfeito igual app ---------- */
+@media (max-width: 600px){
+  .header{
+    padding: .95rem 0;
+  }
+
+  /* força tudo em coluna e centralizado */
+  .header-content{
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .75rem;
+  }
+
+  .header-left{
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .6rem;
+  }
+
+  /* logo maior no mobile (sem ficar minúscula como no print) */
+  .header .header-logo{
+    height: 86px;       /* AUMENTA NO MOBILE */
+    max-width: 240px;
+  }
+
+  .header .header-title{
+    font-size: 1.55rem;
+  }
+
+  .header .header-subtitle{
+    font-size: 1rem;
+  }
+
+  /* botões em grade 2 colunas (não estoura) */
+  .header-actions{
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem;
+  }
+
+  .header-actions .btn{
+    width: 100%;
+    justify-content: center;
+    padding: .8rem 1rem;
+    font-size: 1rem;
+    border-radius: 14px;
+  }
+}
+
+/* ---------- MODAL: Detalhes do Elemento (corrige corte no mobile) ---------- */
+
+/* deixa o modal centralizado com respiro */
+.modal.active{
+  padding: 12px;
+}
+
+/* header do modal sempre visível */
+.modal-header{
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 1rem 1rem;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+
+/* ações do header do modal: permite quebrar sem sumir */
+.modal-header-actions{
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  width: 100%;
+}
+
+/* garante que o X sempre apareça */
+.modal-close{
+  margin-left: auto;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 38px;
+  border-radius: 12px;
+}
+
+/* mobile: Exportar não corta e header não fica apertado */
+@media (max-width: 600px){
+  .modal-content{
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 16px;
+  }
+
+  .modal-header h2{
+    width: 100%;
+    font-size: 1.05rem;
+  }
+
+  /* botões menores e alinhados */
+  .modal-header-actions .btn{
+    padding: .42rem .6rem;
+    font-size: .82rem;
+  }
+
+  /* força Exportar e Adicionar ficarem visíveis */
+  #btnAdicionarInfo, #btnExportExcel{
+    flex: 1 1 auto;
+  }
+
+  /* X sempre no canto direito da linha */
+  .modal-close{
+    flex: 0 0 auto;
+  }
+
+  .modal-body{
+    padding: 1rem;
+  }
+}
