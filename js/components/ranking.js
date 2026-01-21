@@ -196,6 +196,7 @@ function openElementDetails(elemento, ocorrencias) {
  * - Para cada elemento, mostra a causa predominante (e %)
  */
 export function generateRankingText() {
+    console.log('[COPIAR] generateRankingText NOVA VERSAO ATIVA ✅', { currentElementoFilter, elementoSearchTerm });
     if (!currentRankingData.length) return 'Nenhum ranking disponível.';
   
     const view = getFilteredRanking(currentRankingData);
