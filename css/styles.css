@@ -77,7 +77,7 @@ body::before {
 .header {
   background: var(--gradient-primary);
   color: var(--white);
-  padding: 1.5rem 0;
+  padding: 1.05rem 0; /* mais “pro” e ainda comporta logo grande */
   box-shadow: 0 4px 20px var(--shadow-lg);
   position: relative;
   overflow: hidden;
@@ -107,8 +107,9 @@ body::before {
 .header-left{
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1.1rem;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .header-actions{
@@ -116,21 +117,44 @@ body::before {
   align-items: center;
   gap: .6rem;
   margin-left: auto;
+  flex-wrap: wrap;
 }
 
 /* Logo e textos */
 .header .header-logo{
-  height: 92px;
-  max-width: 320px;
+  /* logo grande e responsiva (profissional) */
+  height: clamp(78px, 6vw, 110px);
+  max-width: 360px;
   object-fit: contain;
+  display: block;
 }
 
-.header .header-text{ display:flex; flex-direction:column; line-height: 1.15; }
-.header .header-title{ font-size: 1.75rem; font-weight: 800; margin: 0; color: var(--white); }
-.header .header-subtitle{ font-size: 1rem; opacity: .92; margin: 0; color: var(--white); }
+.header .header-text{
+  display:flex;
+  flex-direction:column;
+  line-height: 1.12;
+  min-width: 0;
+}
+
+.header .header-title{
+  font-size: 1.45rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--white);
+}
+
+.header .header-subtitle{
+  font-size: 0.92rem;
+  opacity: .92;
+  margin: 0;
+  color: var(--white);
+}
 
 @media (max-width: 700px){
-  .header-actions{ width: 100%; justify-content: flex-start; }
+  .header-actions{
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 /* =========================
@@ -353,6 +377,7 @@ body::before {
 
 .ranking-card .ranking-header{ display:flex; flex-direction: column; gap: .75rem; }
 .ranking-controls{ display:flex; gap:.5rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+
 .ranking-filters{ display:flex; gap:.5rem; flex-wrap:wrap; }
 .ranking-filters .btn.active{ border: 2px solid var(--secondary-blue); transform: translateY(-1px); }
 
@@ -424,36 +449,88 @@ body::before {
 
 .modal-content.modal-sm { max-width: 500px; }
 
+/* header do modal fica sempre visível e não “corta” ações no mobile */
 .modal-header {
-  padding: 2rem;
+  padding: 1.35rem 1.35rem;
   border-bottom: 2px solid rgba(255, 255, 255, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+
   background: var(--gradient-primary);
   color: var(--white);
   border-radius: 20px 20px 0 0;
   box-shadow: 0 4px 12px rgba(10, 74, 140, 0.2);
+
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
-.modal-header h2 { margin: 0; font-size: 1.3rem; }
-.modal-header-actions { display: flex; gap: 0.5rem; align-items: center; }
+.modal-header h2 { margin: 0; font-size: 1.15rem; line-height: 1.2; }
+
+.modal-header-actions{
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 
 .modal-close {
-  background: none;
-  border: none;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.22);
   color: var(--white);
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 5px;
-  transition: background-color 0.3s ease;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.modal-close:hover { background-color: rgba(255, 255, 255, 0.2); }
+.modal-close:hover { background-color: rgba(255, 255, 255, 0.2); transform: translateY(-1px); }
 
-.modal-body { padding: 1.5rem; }
+.modal-body { padding: 1.35rem; }
 .modal-footer { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--light-gray); }
+
+/* Mobile: garante Exportar + X visíveis e sem “cortar” */
+@media (max-width: 600px){
+  .modal-content{
+    width: 96%;
+    max-height: 92vh;
+    border-radius: 16px;
+  }
+
+  .modal-header{
+    padding: 1rem;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .modal-header h2{
+    font-size: 1rem;
+  }
+
+  .modal-header-actions{
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .modal-header-actions .btn{
+    padding: .38rem .55rem;
+    font-size: .78rem;
+  }
+
+  /* X sempre acessível (último à direita) */
+  .modal-close{
+    margin-left: auto;
+    padding: .34rem .5rem;
+  }
+}
 
 /* =========================
    DETALHES EM TABELA (HORIZONTAL)
@@ -631,7 +708,7 @@ body::before {
 @keyframes slideDown { from { transform: translateY(-50px) scale(0.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
 
 /* =========================
-   RESPONSIVO
+   RESPONSIVO (geral)
 ========================= */
 
 @media (max-width: 768px) {
@@ -639,61 +716,6 @@ body::before {
   .filter-group { width: 100%; }
   .ranking-header { flex-direction: column; align-items: flex-start; }
   .modal-content { width: 95%; max-height: 95vh; }
-}
-
-/* =========================
-   AJUSTE FINAL - HEADER (logo maior, sem quebrar botões)
-   ========================= */
-
-.header{
-  padding: .8rem 0 !important;
-}
-
-.header .header-logo{
-  height: 74px !important;
-  max-width: 280px !important;
-  object-fit: contain;
-}
-
-.header .header-title{
-  font-size: 1.3rem !important;
-  line-height: 1.1 !important;
-  margin: 0 !important;
-}
-
-.header .header-subtitle{
-  font-size: .85rem !important;
-  margin: 0 !important;
-  opacity: .92 !important;
-}
-
-.header-actions{
-  display: flex !important;
-  align-items: center !important;
-  gap: .6rem !important;
-}
-
-.header-actions .btn{
-  padding: .4rem .75rem !important;
-  font-size: .82rem !important;
-}
-
-/* mobile */
-@media (max-width: 600px){
-  .header{ padding: .6rem 0 !important; }
-
-  .header .header-logo{
-    height: 60px !important;
-    max-width: 220px !important;
-  }
-
-  .header .header-title{ font-size: 1.05rem !important; }
-  .header .header-subtitle{ font-size: .72rem !important; }
-
-  .header-actions .btn{
-    padding: .35rem .6rem !important;
-    font-size: .78rem !important;
-  }
 }
 
 /* =========================
