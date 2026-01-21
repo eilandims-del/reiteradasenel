@@ -188,18 +188,140 @@ function openElementDetails(elemento, ocorrencias) {
 /**
  * Gerar texto do ranking para copiar (WhatsApp)
  */
+/**
+ * Gerar texto do ranking para copiar (WhatsApp) - versão profissional
+ * - Usa o filtro ativo (TRAFO/FUSIVEL/OUTROS)
+ * - Usa período selecionado (inputs #dataInicial / #dataFinal)
+ * - Usa a visão filtrada (ranking da tela)
+ * - Para cada elemento, mostra a causa predominante (e %)
+ */
 export function generateRankingText() {
-    if (currentRankingData.length === 0) return 'Nenhum ranking disponível.';
-
+    if (!currentRankingData.length) return 'Nenhum ranking disponível.';
+  
     const view = getFilteredRanking(currentRankingData);
-
-    let text = '📊 *RANKING DE REINTERADAS - ELEMENTO*\n\n';
-    view.forEach((item, index) => {
-        text += `${index + 1} - ${item.elemento} (${item.count} vezes)\n`;
+  
+    if (!view.length) {
+      return [
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '📋 *RELATÓRIO DE REINTERADAS*',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        `Tipo de elemento: *${getFiltroLabel(currentElementoFilter)}*`,
+        `📅 Período: ${getPeriodoLabel()}`,
+        '',
+        'Nenhum elemento encontrado para o filtro atual.',
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        '',
+        '🔗 *Visualizar no painel:*',
+        'https://eilandims-del.github.io/reinteradasenel'
+      ].join('\n');
+    }
+  
+    // Controle de tamanho (WhatsApp): evita texto gigante
+    const MAX_ITENS = 30;
+    const sliced = view.slice(0, MAX_ITENS);
+    const restantes = view.length - sliced.length;
+  
+    const linhas = [];
+  
+    linhas.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    linhas.push('📋 *RELATÓRIO DE REINTERADAS*');
+    linhas.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    linhas.push(`Tipo de elemento: *${getFiltroLabel(currentElementoFilter)}*`);
+    linhas.push(`📅 Período: ${getPeriodoLabel()}`);
+    if (elementoSearchTerm) linhas.push(`🔎 Busca: *${elementoSearchTerm}*`);
+    linhas.push('');
+  
+    sliced.forEach((item, idx) => {
+      const total = Number(item.count) || 0;
+  
+      const topCausa = getTopByField(item.ocorrencias || [], 'CAUSA');
+      const causaNome = topCausa?.name ? sanitizeOneLine(topCausa.name) : 'Não informado';
+      const causaQtd = topCausa?.count ? topCausa.count : 0;
+      const causaPct = total ? Math.round((causaQtd / total) * 100) : 0;
+  
+      // Formatação alinhada e “de relatório”
+      linhas.push(`*${String(idx + 1).padStart(2, '0')})* ${sanitizeOneLine(item.elemento)}  *(${total}x)*`);
+      linhas.push(`   └─ 🔹 Causa predominante: ${causaNome}  *(${causaQtd}x | ${causaPct}%)*`);
+      linhas.push(''); // linha em branco entre itens
     });
-
-    return text;
-}
+  
+    if (restantes > 0) {
+      linhas.push(`…e mais *${restantes}* item(ns) no ranking (refine pelo painel para ver todos).`);
+      linhas.push('');
+    }
+  
+    linhas.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    linhas.push('🔗 *Visualizar mais detalhes:*');
+    linhas.push('https://eilandims-del.github.io/reinteradasenel');
+  
+    return linhas.join('\n').trim();
+  }
+  
+  /** Helpers locais (cole abaixo da função) */
+  function getFiltroLabel(filter) {
+    const f = String(filter || '').toUpperCase();
+    if (f === 'TRAFO') return 'TRAFO';
+    if (f === 'FUSIVEL') return 'FUSÍVEL';
+    if (f === 'OUTROS') return 'OUTROS';
+    return f || 'N/D';
+  }
+  
+  function getPeriodoLabel() {
+    const di = document.getElementById('dataInicial')?.value || '';
+    const df = document.getElementById('dataFinal')?.value || '';
+  
+    const fmt = (iso) => {
+      if (!iso) return '';
+      // iso esperado: YYYY-MM-DD
+      const [y, m, d] = iso.split('-');
+      if (!y || !m || !d) return iso;
+      return `${d}/${m}/${y}`;
+    };
+  
+    if (di && df) return `*${fmt(di)}* até *${fmt(df)}*`;
+    if (di && !df) return `a partir de *${fmt(di)}*`;
+    if (!di && df) return `até *${fmt(df)}*`;
+    return '*Todos os registros (sem filtro de data)*';
+  }
+  
+  /**
+   * Retorna o valor mais frequente de um campo em um conjunto de ocorrências.
+   * Ex.: CAUSA predominante do elemento
+   */
+  function getTopByField(ocorrencias, fieldName) {
+    if (!Array.isArray(ocorrencias) || !ocorrencias.length) return null;
+  
+    const normalizeKey = (k) => String(k || '').trim().toLowerCase().replace(/\./g, '');
+    const getFieldValue = (row, field) => {
+      if (!row) return '';
+      if (row[field] != null) return row[field];
+      const target = normalizeKey(field);
+      const foundKey = Object.keys(row).find(k => normalizeKey(k) === target);
+      return foundKey ? row[foundKey] : '';
+    };
+  
+    const counts = new Map();
+  
+    for (const row of ocorrencias) {
+      const raw = String(getFieldValue(row, fieldName) || '').trim();
+      if (!raw) continue;
+      counts.set(raw, (counts.get(raw) || 0) + 1);
+    }
+  
+    let best = null;
+    for (const [name, count] of counts.entries()) {
+      if (!best || count > best.count) best = { name, count };
+    }
+    return best;
+  }
+  
+  function sanitizeOneLine(v) {
+    return String(v ?? '')
+      .replace(/\s+/g, ' ')
+      .replace(/\n/g, ' ')
+      .trim();
+  }
+  
 
 
 /**
