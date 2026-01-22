@@ -7,7 +7,7 @@ import { openModal, fillDetailsModal } from './modal.js';
 
 let currentRankingData = [];
 let allData = [];
-let currentElementoFilter = 'TODOS'; // 'TODOS' | 'TRAFO' | 'FUSIVEL' | 'OUTROS'
+let currentElementoFilter = 'TODOS'; // 'TODOS' | 'TRAFO' | 'FUSIVEL' | 'RELIGADOR'
 let elementoSearchTerm = ''; // texto de busca (normalizado)
 let currentRankingCausaData = [];
 let currentRankingAlimentadorData = [];
@@ -34,17 +34,31 @@ export function setElementoSearch(term) {
   renderRankingList(getFilteredRanking(currentRankingData));
 }
 
+/**
+ * Classificação de tipo:
+ * - T* => TRAFO
+ * - F* => FUSIVEL
+ * - demais => RELIGADOR
+ */
+function getElementoTipo(elemento) {
+  const el = String(elemento || '').trim().toUpperCase();
+  const first = el.charAt(0);
+  if (first === 'T') return 'TRAFO';
+  if (first === 'F') return 'FUSIVEL';
+  return 'RELIGADOR';
+}
+
 function getFilteredRanking(ranking) {
   const normalize = (v) => String(v || '').trim().toUpperCase();
 
   let result = ranking.filter(item => {
     const el = normalize(item.elemento);
-    const first = el.charAt(0);
+    const tipo = getElementoTipo(el);
 
     if (currentElementoFilter === 'TODOS') return true;
-    if (currentElementoFilter === 'TRAFO') return first === 'T';
-    if (currentElementoFilter === 'FUSIVEL') return first === 'F';
-    if (currentElementoFilter === 'OUTROS') return first !== 'T' && first !== 'F';
+    if (currentElementoFilter === 'TRAFO') return tipo === 'TRAFO';
+    if (currentElementoFilter === 'FUSIVEL') return tipo === 'FUSIVEL';
+    if (currentElementoFilter === 'RELIGADOR') return tipo === 'RELIGADOR';
     return true;
   });
 
@@ -191,14 +205,14 @@ function openElementDetails(elemento, ocorrencias) {
 }
 
 /**
- * Gerar texto do ranking para copiar (WhatsApp) - versão profissional
- * - Usa o filtro ativo (TODOS/TRAFO/FUSIVEL/OUTROS)
- * - Usa período selecionado (inputs #dataInicial / #dataFinal)
- * - Usa a visão filtrada (ranking da tela)
- * - Para cada elemento, mostra a causa predominante (e %)
+ * Gerar texto do ranking para copiar (WhatsApp) - modelo solicitado:
+ * - Mostra Alimentador (mais frequente)
+ * - Mostra TODAS as causas (únicas, ordenadas por frequência)
+ * - Separa por tipo (TRAFO / FUSÍVEL / RELIGADOR) quando filtro = TODOS
+ * - OBS aparece somente se não existir ranking do(s) tipo(s)
  */
 export function generateRankingText() {
-  console.log('[COPIAR] generateRankingText NOVA VERSAO ATIVA ✅', { currentElementoFilter, elementoSearchTerm });
+  console.log('[COPIAR] generateRankingText ✅', { currentElementoFilter, elementoSearchTerm });
 
   if (!currentRankingData.length) return 'Nenhum ranking disponível.';
 
@@ -215,41 +229,89 @@ export function generateRankingText() {
       'Nenhum elemento encontrado para o filtro atual.',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '',
-      '🔗 *Visualizar no painel:*',
+      '🔗 *Visualizar mais detalhes:*',
       'https://eilandims-del.github.io/reinteradasenel'
     ].join('\n');
   }
 
-  // Controle de tamanho (WhatsApp): evita texto gigante
-  const MAX_ITENS = 30;
-  const sliced = view.slice(0, MAX_ITENS);
-  const restantes = view.length - sliced.length;
+  const trafos = view.filter(x => getElementoTipo(x.elemento) === 'TRAFO');
+  const fus = view.filter(x => getElementoTipo(x.elemento) === 'FUSIVEL');
+  const rel = view.filter(x => getElementoTipo(x.elemento) === 'RELIGADOR');
 
   const linhas = [];
-
   linhas.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   linhas.push('📋 *RELATÓRIO DE REINTERADAS*');
   linhas.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   linhas.push(`Tipo de elemento: *${getFiltroLabel(currentElementoFilter)}*`);
   linhas.push(`📅 Período: ${getPeriodoLabel()}`);
   if (elementoSearchTerm) linhas.push(`🔎 Busca: *${elementoSearchTerm}*`);
-  linhas.push(`Reinteradas no ranking: *${view.length}*`);
+  linhas.push('');
   linhas.push('');
 
-  sliced.forEach((item, idx) => {
-    const total = Number(item.count) || 0;
+  const MAX_ITENS_POR_SECAO = 30;
+  let globalIndex = 1;
 
-    const causasStr = getAllCausesLine(item.ocorrencias || []);
+  const renderSecao = (titulo, arr) => {
+    if (!arr.length) return;
 
-    linhas.push(`*${String(idx + 1).padStart(2, '0')})* ${sanitizeOneLine(item.elemento)}  *(${total}x)*`);
-    linhas.push(`   └─ 🔹 Causa : ${causasStr}`);
+    linhas.push(`*${titulo}*`);
     linhas.push('');
-    
-  });
 
-  if (restantes > 0) {
-    linhas.push(`…e mais *${restantes}* item(ns) no ranking (refine pelo painel para ver todos).`);
-    linhas.push('');
+    const sliced = arr.slice(0, MAX_ITENS_POR_SECAO);
+    const restantes = arr.length - sliced.length;
+
+    sliced.forEach((item) => {
+      const total = Number(item.count) || 0;
+
+      // Alimentador (mais frequente nas ocorrências)
+      const alimentador = getMostFrequentField(item.ocorrencias || [], 'ALIMENT.');
+      const alimentadorStr = alimentador ? sanitizeOneLine(alimentador) : 'Não informado';
+
+      // Todas as causas (únicas, por frequência)
+      const causasStr = getAllCausesLine(item.ocorrencias || []);
+
+      linhas.push(`*${String(globalIndex).padStart(2, '0')})* ${sanitizeOneLine(item.elemento)}  *(${total} vezes)* - Alimentador: ${alimentadorStr}`);
+      linhas.push(`   └─ 🔹 Causa : ${causasStr}`);
+      linhas.push('');
+      linhas.push('');
+
+      globalIndex += 1;
+    });
+
+    if (restantes > 0) {
+      linhas.push(`…e mais *${restantes}* item(ns) em ${titulo} (refine pelo painel para ver todos).`);
+      linhas.push('');
+      linhas.push('');
+    }
+  };
+
+  if (currentElementoFilter === 'TODOS') {
+    renderSecao('TRAFO', trafos);
+    renderSecao('FUSÍVEL', fus);
+    renderSecao('RELIGADOR', rel);
+
+    if (!trafos.length && !fus.length && !rel.length) {
+      linhas.push('OBS: Não reinterou nenhum FUSÍVEL, TRAFO, RELIGADOR');
+      linhas.push('');
+    }
+  } else if (currentElementoFilter === 'TRAFO') {
+    renderSecao('TRAFO', trafos);
+    if (!trafos.length) {
+      linhas.push('OBS: Não reinterou nenhum TRAFO');
+      linhas.push('');
+    }
+  } else if (currentElementoFilter === 'FUSIVEL') {
+    renderSecao('FUSÍVEL', fus);
+    if (!fus.length) {
+      linhas.push('OBS: Não reinterou nenhum FUSÍVEL');
+      linhas.push('');
+    }
+  } else if (currentElementoFilter === 'RELIGADOR') {
+    renderSecao('RELIGADOR', rel);
+    if (!rel.length) {
+      linhas.push('OBS: Não reinterou nenhum RELIGADOR');
+      linhas.push('');
+    }
   }
 
   linhas.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -264,7 +326,7 @@ function getFiltroLabel(filter) {
   if (f === 'TODOS') return 'TODOS';
   if (f === 'TRAFO') return 'TRAFO';
   if (f === 'FUSIVEL') return 'FUSÍVEL';
-  if (f === 'OUTROS') return 'OUTROS';
+  if (f === 'RELIGADOR') return 'RELIGADOR';
   return f || 'N/D';
 }
 
@@ -283,36 +345,6 @@ function getPeriodoLabel() {
   if (di && !df) return `a partir de *${fmt(di)}*`;
   if (!di && df) return `até *${fmt(df)}*`;
   return '*Todos os registros (sem filtro de data)*';
-}
-
-/**
- * Retorna o valor mais frequente de um campo em um conjunto de ocorrências.
- */
-function getTopByField(ocorrencias, fieldName) {
-  if (!Array.isArray(ocorrencias) || !ocorrencias.length) return null;
-
-  const normalizeKey = (k) => String(k || '').trim().toLowerCase().replace(/\./g, '');
-  const getFieldValue = (row, field) => {
-    if (!row) return '';
-    if (row[field] != null) return row[field];
-    const target = normalizeKey(field);
-    const foundKey = Object.keys(row).find(k => normalizeKey(k) === target);
-    return foundKey ? row[foundKey] : '';
-  };
-
-  const counts = new Map();
-
-  for (const row of ocorrencias) {
-    const raw = String(getFieldValue(row, fieldName) || '').trim();
-    if (!raw) continue;
-    counts.set(raw, (counts.get(raw) || 0) + 1);
-  }
-
-  let best = null;
-  for (const [name, count] of counts.entries()) {
-    if (!best || count > best.count) best = { name, count };
-  }
-  return best;
 }
 
 function sanitizeOneLine(v) {
@@ -343,6 +375,11 @@ function getFieldValue(row, fieldName) {
 
   if (row[fieldName] != null) return row[fieldName];
 
+  // tenta também sem ponto
+  const noDot = String(fieldName).replace(/\./g, '');
+  if (row[noDot] != null) return row[noDot];
+
+  // tenta por normalização
   const target = normalizeKey(fieldName);
   const foundKey = Object.keys(row).find(k => normalizeKey(k) === target);
   if (foundKey) return row[foundKey];
@@ -369,10 +406,40 @@ function generateRankingByField(data, field) {
     .sort((a, b) => b.count - a.count);
 }
 
+/**
+ * Retorna o valor mais frequente de um campo em ocorrências (ex.: ALIMENT.)
+ */
+function getMostFrequentField(ocorrencias, fieldName) {
+  if (!Array.isArray(ocorrencias) || !ocorrencias.length) return '';
+
+  const counts = new Map();
+  for (const row of ocorrencias) {
+    const raw = String(getFieldValue(row, fieldName) || '').trim();
+    const clean = sanitizeOneLine(raw);
+    if (!clean) continue;
+    counts.set(clean, (counts.get(clean) || 0) + 1);
+  }
+
+  if (counts.size === 0) return '';
+
+  let best = '';
+  let bestCount = -1;
+  for (const [name, count] of counts.entries()) {
+    if (count > bestCount) {
+      best = name;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+/**
+ * Monta uma linha com TODAS as causas únicas, ordenadas por frequência.
+ * Ex.: "CHUVA, PÁSSARO, DESCARGAS ATMOSFÉRICAS"
+ */
 function getAllCausesLine(ocorrencias) {
   if (!Array.isArray(ocorrencias) || !ocorrencias.length) return 'Não informado';
 
-  // Conta frequência das causas (normalizando)
   const counts = new Map();
 
   for (const row of ocorrencias) {
@@ -385,20 +452,17 @@ function getAllCausesLine(ocorrencias) {
 
   if (counts.size === 0) return 'Não informado';
 
-  // Ordena por frequência desc e monta lista única (sem repetir)
   const sorted = Array.from(counts.entries())
     .sort((a, b) => b[1] - a[1])
     .map(([name]) => name);
 
-  // Evita estourar no WhatsApp (ajuste se quiser)
-  const MAX_CAUSAS = 12;
+  const MAX_CAUSAS = 12; // ajuste se quiser
   const sliced = sorted.slice(0, MAX_CAUSAS);
   const rest = sorted.length - sliced.length;
 
   const base = sliced.join(', ');
   return rest > 0 ? `${base} …(+${rest})` : base;
 }
-
 
 function renderRankingGeneric(containerId, ranking, onClick) {
   const container = document.getElementById(containerId);

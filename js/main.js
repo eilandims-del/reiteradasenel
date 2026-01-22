@@ -57,7 +57,7 @@ function initEventListeners() {
   const btnTodos = document.getElementById('btnFiltroTodos');
   const btnTrafo = document.getElementById('btnFiltroTrafo');
   const btnFusivel = document.getElementById('btnFiltroFusivel');
-  const btnOutros = document.getElementById('btnFiltroOutros');
+  const btnOutros = document.getElementById('btnFiltroReligador');
 
   const setActive = (activeBtn) => {
     [btnTodos, btnTrafo, btnFusivel, btnOutros].forEach(b => b?.classList.remove('active'));
@@ -67,7 +67,7 @@ function initEventListeners() {
   btnTodos?.addEventListener('click', () => { setElementoFilter('TODOS'); setActive(btnTodos); });
   btnTrafo?.addEventListener('click', () => { setElementoFilter('TRAFO'); setActive(btnTrafo); });
   btnFusivel?.addEventListener('click', () => { setElementoFilter('FUSIVEL'); setActive(btnFusivel); });
-  btnOutros?.addEventListener('click', () => { setElementoFilter('OUTROS'); setActive(btnOutros); });
+  btnOutros?.addEventListener('click', () => { setElementoFilter('RELIGADOR'); setActive(btnReligador); });
 
   // estado inicial visual
   setElementoFilter('TODOS');
