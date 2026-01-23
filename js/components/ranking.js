@@ -89,7 +89,10 @@ function renderRankingList(ranking) {
   }
 
   const INITIAL_DISPLAY = 100;
-  const hasMore = ranking.length > INITIAL_DISPLAY;
+  const BATCH_SIZE = 50;
+
+  // threshold para iniciar carregamento antes de chegar no fim
+  const SCROLL_THRESHOLD_PX = 120;
 
   container.innerHTML = '';
 
@@ -124,37 +127,60 @@ function renderRankingList(ranking) {
     });
   };
 
-  renderBatch(0, INITIAL_DISPLAY).then(() => {
-    if (hasMore) {
-      const showMoreBtn = document.createElement('button');
-      showMoreBtn.className = 'btn btn-secondary btn-sm';
-      showMoreBtn.style.marginTop = '1rem';
-      showMoreBtn.style.width = '100%';
-      showMoreBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Ver mais (${ranking.length - INITIAL_DISPLAY} restantes)`;
+  // Estado do carregamento incremental
+  let currentEnd = 0;
+  let isLoading = false;
 
-      let currentEnd = INITIAL_DISPLAY;
-      const BATCH_SIZE = 50;
+  // Remove listeners antigos para evitar duplicidade quando troca filtro/busca
+  if (container.__onRankingScroll) {
+    container.removeEventListener('scroll', container.__onRankingScroll);
+    container.__onRankingScroll = null;
+  }
 
-      showMoreBtn.onclick = async () => {
-        showMoreBtn.disabled = true;
-        showMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando...';
+  const loadMoreIfNeeded = async () => {
+    if (isLoading) return;
+    if (currentEnd >= ranking.length) return;
 
-        const nextEnd = Math.min(currentEnd + BATCH_SIZE, ranking.length);
-        await renderBatch(currentEnd, nextEnd);
-        currentEnd = nextEnd;
+    isLoading = true;
 
-        if (currentEnd >= ranking.length) {
-          showMoreBtn.remove();
-        } else {
-          showMoreBtn.disabled = false;
-          showMoreBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Ver mais (${ranking.length - currentEnd} restantes)`;
-        }
-      };
+    const nextEnd = Math.min(currentEnd + BATCH_SIZE, ranking.length);
+    await renderBatch(currentEnd, nextEnd);
+    currentEnd = nextEnd;
 
-      container.appendChild(showMoreBtn);
+    isLoading = false;
+  };
+
+  // Handler de scroll com gatilho no final
+  const onScroll = async () => {
+    // se já carregou tudo, não faz nada
+    if (currentEnd >= ranking.length) return;
+
+    const nearBottom =
+      container.scrollTop + container.clientHeight >= (container.scrollHeight - SCROLL_THRESHOLD_PX);
+
+    if (nearBottom) {
+      await loadMoreIfNeeded();
+    }
+  };
+
+  // Guarda referência para remover corretamente em renderizações futuras
+  container.__onRankingScroll = onScroll;
+  container.addEventListener('scroll', onScroll, { passive: true });
+
+  // 1) Render inicial (até INITIAL_DISPLAY)
+  const firstEnd = Math.min(INITIAL_DISPLAY, ranking.length);
+  renderBatch(0, firstEnd).then(async () => {
+    currentEnd = firstEnd;
+
+    // 2) Caso a lista inicial não ocupe todo o container (sem scroll),
+    //    completa automaticamente até gerar scroll ou acabar os itens.
+    //    (Evita "parece travado" em telas grandes)
+    while (currentEnd < ranking.length && container.scrollHeight <= container.clientHeight) {
+      await loadMoreIfNeeded();
     }
   });
 }
+
 
 /**
  * Renderizar ranking por ELEMENTO
