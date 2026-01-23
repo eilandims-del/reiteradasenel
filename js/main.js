@@ -57,35 +57,17 @@ function initEventListeners() {
   const btnTodos = document.getElementById('btnFiltroTodos');
   const btnTrafo = document.getElementById('btnFiltroTrafo');
   const btnFusivel = document.getElementById('btnFiltroFusivel');
-  const btnReligador = document.getElementById('btnFiltroReligador');
-  
+  const btnOutros = document.getElementById('btnFiltroReligador');
+
   const setActive = (activeBtn) => {
-    [btnTodos, btnTrafo, btnFusivel, btnReligador]
-      .forEach(b => b?.classList.remove('active'));
-  
+    [btnTodos, btnTrafo, btnFusivel, btnOutros].forEach(b => b?.classList.remove('active'));
     activeBtn?.classList.add('active');
   };
-  
-  btnTodos?.addEventListener('click', () => {
-    setElementoFilter('TODOS');
-    setActive(btnTodos);
-  });
-  
-  btnTrafo?.addEventListener('click', () => {
-    setElementoFilter('TRAFO');
-    setActive(btnTrafo);
-  });
-  
-  btnFusivel?.addEventListener('click', () => {
-    setElementoFilter('FUSIVEL');
-    setActive(btnFusivel);
-  });
-  
-  btnReligador?.addEventListener('click', () => {
-    setElementoFilter('RELIGADOR');
-    setActive(btnReligador);
-  });
-  
+
+  btnTodos?.addEventListener('click', () => { setElementoFilter('TODOS'); setActive(btnTodos); });
+  btnTrafo?.addEventListener('click', () => { setElementoFilter('TRAFO'); setActive(btnTrafo); });
+  btnFusivel?.addEventListener('click', () => { setElementoFilter('FUSIVEL'); setActive(btnFusivel); });
+  btnOutros?.addEventListener('click', () => { setElementoFilter('RELIGADOR'); setActive(btnReligador); });
 
   // estado inicial visual
   setElementoFilter('TODOS');

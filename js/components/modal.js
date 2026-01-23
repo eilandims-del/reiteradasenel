@@ -32,17 +32,12 @@ export function closeModal(modalId) {
 export function initModalEvents() {
   // Fechar ao clicar fora (BACKDROP) — EXCETO modalDetalhes
   document.addEventListener('click', (e) => {
-    const modal = e.target.closest('.modal.active');
-    if (!modal) return;
-
-    // Se clicou dentro do conteúdo, não fecha
-    const content = e.target.closest('.modal-content');
-    if (content) return;
+    if (!e.target.classList.contains('modal')) return;
 
     // modalDetalhes NÃO fecha clicando fora
-    if (modal.id === 'modalDetalhes') return;
+    if (e.target.id === 'modalDetalhes') return;
 
-    closeModal(modal.id);
+    closeModal(e.target.id);
   });
 
   // Fechar com ESC — EXCETO modalDetalhes
@@ -68,6 +63,7 @@ export function initModalEvents() {
   });
 }
 
+
 /**
  * Preencher modal de detalhes (AGORA EM TABELA/HORIZONTAL)
  */
@@ -75,8 +71,10 @@ export function fillDetailsModal(elemento, ocorrencias, selectedColumns = []) {
   const modalContent = document.getElementById('detalhesConteudo');
   if (!modalContent) return;
 
+  // Limpar conteúdo anterior
   modalContent.innerHTML = '';
 
+  // Ordem fixa dos campos principais
   const fixedFields = [
     { key: 'INCIDENCIA', label: 'INCIDÊNCIA' },
     { key: 'ELEMENTO', label: 'ELEMENTO' },
@@ -86,25 +84,31 @@ export function fillDetailsModal(elemento, ocorrencias, selectedColumns = []) {
     { key: 'ALIMENT.', label: 'ALIMENTADOR' },
     { key: 'CONJUNTO', label: 'CONJUNTO' }
   ];
+  
 
+  // Normaliza colunas adicionais e remove duplicadas (por segurança)
   const extraCols = Array.from(new Set((selectedColumns || []).filter(Boolean)));
 
+  // Wrapper com scroll horizontal
   const wrap = document.createElement('div');
   wrap.className = 'detalhes-table-wrap';
 
   const table = document.createElement('table');
   table.className = 'detalhes-table';
 
+  // THEAD
   const thead = document.createElement('thead');
   const trHead = document.createElement('tr');
 
-  fixedFields.forEach((f) => {
+  // Cabeçalhos fixos
+  fixedFields.forEach(f => {
     const th = document.createElement('th');
     th.textContent = f.label;
     trHead.appendChild(th);
   });
 
-  extraCols.forEach((col) => {
+  // Cabeçalhos extras
+  extraCols.forEach(col => {
     const th = document.createElement('th');
     th.textContent = col;
     trHead.appendChild(th);
@@ -113,6 +117,7 @@ export function fillDetailsModal(elemento, ocorrencias, selectedColumns = []) {
   thead.appendChild(trHead);
   table.appendChild(thead);
 
+  // TBODY
   const tbody = document.createElement('tbody');
 
   if (!Array.isArray(ocorrencias) || ocorrencias.length === 0) {
@@ -128,12 +133,14 @@ export function fillDetailsModal(elemento, ocorrencias, selectedColumns = []) {
     ocorrencias.forEach((ocorrencia) => {
       const tr = document.createElement('tr');
 
-      fixedFields.forEach((field) => {
+      // colunas fixas
+      fixedFields.forEach(field => {
         const td = document.createElement('td');
 
         let value = getValueSmart(ocorrencia, field.key);
         if (value === '' || value == null) value = 'N/A';
 
+        // INCIDENCIA com link
         if (field.key === 'INCIDENCIA' && value !== 'N/A') {
           const url = formatIncidenciaUrl(value);
           if (url) {
@@ -146,16 +153,20 @@ export function fillDetailsModal(elemento, ocorrencias, selectedColumns = []) {
           } else {
             td.textContent = String(value);
           }
-        } else if (field.key === 'DATA' && value !== 'N/A') {
+        }
+        // DATA formatada
+        else if (field.key === 'DATA' && value !== 'N/A') {
           td.textContent = formatDate(value);
-        } else {
+        }
+        else {
           td.textContent = String(value);
         }
 
         tr.appendChild(td);
       });
 
-      extraCols.forEach((colKey) => {
+      // colunas extras
+      extraCols.forEach(colKey => {
         const td = document.createElement('td');
         let value = getValueSmart(ocorrencia, colKey);
         if (value === '' || value == null) value = 'N/A';
@@ -171,6 +182,7 @@ export function fillDetailsModal(elemento, ocorrencias, selectedColumns = []) {
   wrap.appendChild(table);
   modalContent.appendChild(wrap);
 
+  // Salvar dados para uso posterior
   modalContent.dataset.elemento = elemento;
   modalContent.dataset.selectedColumns = JSON.stringify(extraCols);
 }
@@ -181,8 +193,10 @@ export function fillDetailsModal(elemento, ocorrencias, selectedColumns = []) {
 function getValueSmart(obj, key) {
   if (!obj) return '';
 
+  // tentativa direta
   if (obj[key] != null) return obj[key];
 
+  // variações comuns
   const normalizedTarget = normalizeKey(key);
   const keyNoDot = String(key).replace(/\./g, '');
   if (obj[keyNoDot] != null) return obj[keyNoDot];
@@ -192,6 +206,7 @@ function getValueSmart(obj, key) {
   if (obj[upper] != null) return obj[upper];
   if (obj[lower] != null) return obj[lower];
 
+  // busca em todas as chaves por normalização
   for (const k in obj) {
     if (normalizeKey(k) === normalizedTarget) return obj[k];
   }
@@ -199,6 +214,9 @@ function getValueSmart(obj, key) {
   return '';
 }
 
+/**
+ * Normalizar chave (remove espaços, acentos, pontos)
+ */
 function normalizeKey(key) {
   return String(key || '')
     .toUpperCase()
@@ -209,6 +227,9 @@ function normalizeKey(key) {
     .replace(/\./g, '');
 }
 
+/**
+ * Formatar URL de incidência
+ */
 function formatIncidenciaUrl(incidencia) {
   if (!incidencia) return null;
   const cleaned = String(incidencia).trim();
@@ -234,21 +255,25 @@ export function exportDetailsToExcel() {
     return;
   }
 
+  // Extrai dados da tabela (thead + tbody) para matriz (AOA)
   const aoa = [];
 
+  // Cabeçalho
   const headCells = table.querySelectorAll('thead th');
-  const headerRow = Array.from(headCells).map((th) => (th.textContent || '').trim());
+  const headerRow = Array.from(headCells).map(th => (th.textContent || '').trim());
   aoa.push(headerRow);
 
+  // Linhas
   const bodyRows = table.querySelectorAll('tbody tr');
-  bodyRows.forEach((tr) => {
+  bodyRows.forEach(tr => {
     const cells = tr.querySelectorAll('td');
-    const row = Array.from(cells).map((td) => {
+    const row = Array.from(cells).map(td => {
       const a = td.querySelector('a');
       const txt = (a ? a.textContent : td.textContent) || '';
       return String(txt).trim();
     });
 
+    // Evita exportar a linha "Nenhuma ocorrência encontrada."
     const isEmptyRow = row.length === 1 && /nenhuma ocorr/i.test(row[0]);
     if (!isEmptyRow) aoa.push(row);
   });
@@ -258,17 +283,18 @@ export function exportDetailsToExcel() {
     return;
   }
 
+  // Nome do arquivo
   const elemento = (modalContent.dataset.elemento || 'ELEMENTO').toString().trim();
   const safeElemento = elemento.replace(/[\\/:*?"<>|]/g, '-');
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
-  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(
-    now.getHours()
-  )}${pad(now.getMinutes())}`;
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
   const fileName = `Detalhes_${safeElemento}_${stamp}.xlsx`;
 
+  // Gera worksheet
   const ws = window.XLSX.utils.aoa_to_sheet(aoa);
 
+  // Ajuste simples de largura das colunas
   const colWidths = headerRow.map((h, i) => {
     let maxLen = String(h || '').length;
     for (let r = 1; r < aoa.length; r++) {
@@ -278,16 +304,18 @@ export function exportDetailsToExcel() {
   });
   ws['!cols'] = colWidths;
 
+  // Workbook
   const wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, ws, 'Detalhes');
 
+  // Download
   window.XLSX.writeFile(wb, fileName);
 }
-
 /**
  * Monta (ou atualiza) o modal de relatório por Alimentador
  */
 export function buildAlimentadorReportModal(alimentadores = []) {
+  // cria o modal se não existir
   let modal = document.getElementById('modalRelatorioAlimentador');
 
   if (!modal) {
@@ -321,7 +349,8 @@ export function buildAlimentadorReportModal(alimentadores = []) {
     document.body.appendChild(modal);
   }
 
-  const list = [...new Set(alimentadores.map((a) => String(a || '').trim()).filter(Boolean))].sort();
+  // ordena e remove vazios
+  const list = [...new Set(alimentadores.map(a => String(a || '').trim()).filter(Boolean))].sort();
 
   const listEl = modal.querySelector('#alimentadorReportList');
   const searchEl = modal.querySelector('#alimentadorReportSearch');
@@ -335,8 +364,10 @@ export function buildAlimentadorReportModal(alimentadores = []) {
 
     const frag = document.createDocumentFragment();
     list
-      .filter((a) => !ft || a.toUpperCase().includes(ft))
+      .filter(a => !ft || a.toUpperCase().includes(ft))
       .forEach((a) => {
+        const id = `chk_${a.replace(/\W+/g, '_')}`;
+
         const row = document.createElement('label');
         row.style.display = 'flex';
         row.style.alignItems = 'center';
@@ -360,28 +391,32 @@ export function buildAlimentadorReportModal(alimentadores = []) {
   searchEl.oninput = (e) => renderList(e.target.value);
 
   btnAll.onclick = () => {
-    modal.querySelectorAll('.alimentadorReportChk').forEach((chk) => (chk.checked = true));
+    modal.querySelectorAll('.alimentadorReportChk').forEach(chk => chk.checked = true);
   };
 
   btnClear.onclick = () => {
-    modal.querySelectorAll('.alimentadorReportChk').forEach((chk) => (chk.checked = false));
+    modal.querySelectorAll('.alimentadorReportChk').forEach(chk => chk.checked = false);
   };
 
-  btnExport.onclick = () => {
+  btnExport.onclick = async () => {
     const selected = Array.from(modal.querySelectorAll('.alimentadorReportChk'))
-      .filter((chk) => chk.checked)
-      .map((chk) => chk.value);
+      .filter(chk => chk.checked)
+      .map(chk => chk.value);
 
     if (!selected.length) {
       alert('Selecione pelo menos 1 alimentador.');
       return;
     }
 
-    // Evento para o ranking.js exportar usando os dados atuais
+    // dispara a exportação (implementada no ranking.js para usar os dados atuais)
+    // este evento customizado é simples e evita import circular
     window.dispatchEvent(new CustomEvent('export-alimentador-report', { detail: { selected } }));
   };
 }
 
+/**
+ * Escape básico para HTML
+ */
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
