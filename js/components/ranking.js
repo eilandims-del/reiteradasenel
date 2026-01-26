@@ -347,7 +347,7 @@ export function generateRankingText() {
     // OBS individuais quando alguma seção não tiver ocorrência
     const obs = [];
     if (!trafos.length) obs.push('🔌 Não reiterou nenhum *TRAFO*');
-    if (!fus.length) obs.push('🧯 Não reiterou nenhum *FUSÍVEL*');
+    if (!fus.length) obs.push('💡 Não reiterou nenhum *FUSÍVEL*');
     if (!rel.length) obs.push('⚡ Não reiterou nenhum *RELIGADOR*');
 
     if (obs.length) {
@@ -364,7 +364,7 @@ export function generateRankingText() {
   } else if (currentElementoFilter === 'FUSIVEL') {
     renderSecao('FUSÍVEL', fus);
     if (!fus.length) {
-      linhas.push('ℹ️ *Observação:* 🧯 Não reiterou nenhum *FUSÍVEL*');
+      linhas.push('ℹ️ *Observação:* 💡 Não reiterou nenhum *FUSÍVEL*');
       linhas.push('');
     }
   } else if (currentElementoFilter === 'RELIGADOR') {
