@@ -323,7 +323,7 @@ export function generateRankingText() {
       // Todas as causas (únicas, por frequência)
       const causasStr = getAllCausesLine(item.ocorrencias || []);
 
-      linhas.push(`*${String(globalIndex).padStart(2, '0')})* ${sanitizeOneLine(item.elemento)}  *(${total}x)*`);
+      linhas.push(`*${String(globalIndex).padStart(2, '0')})* ${sanitizeOneLine(item.elemento)}  *(${total} vezes)*`);
       linhas.push(`   ├─ 🧭 Alimentador: ${alimentadorStr}`);
       linhas.push(`   └─ 🧾 Causas: ${causasStr}`);
       linhas.push('');
