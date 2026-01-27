@@ -33,73 +33,118 @@ export function generateRankingElemento(data) {
    MAPA DE CALOR POR REITERAÇÃO
 ========================= */
 export function generateHeatmapData(data) {
-  const normalize = (v) =>
+  // ✅ normalização forte: remove acentos, pontuação, múltiplos espaços etc.
+  const normKey = (v) =>
     String(v ?? '')
       .trim()
       .toUpperCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+      .replace(/[\u0300-\u036f]/g, '')   // remove acentos
+      .replace(/[^\w\s]/g, ' ')         // pontuação vira espaço
+      .replace(/_/g, ' ')               // underscore vira espaço
+      .replace(/\s+/g, ' ')             // colapsa espaços
+      .trim();
 
-  // conjunto -> elemento -> contagem
+  // conjuntoNorm -> { displayName, elementCounts(Map) }
   const byConjunto = new Map();
 
   data.forEach(item => {
-    const conjunto = normalize(item.CONJUNTO);
-    const elemento = normalize(item.ELEMENTO || item.ELEMENTOS); // ✅ aceita os 2
+    const conjuntoRaw = item.CONJUNTO;
+    const conjunto = normKey(conjuntoRaw);
+    const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
+
     if (!conjunto || !elemento) return;
 
-    if (!byConjunto.has(conjunto)) byConjunto.set(conjunto, new Map());
-    const mapElem = byConjunto.get(conjunto);
-    mapElem.set(elemento, (mapElem.get(elemento) || 0) + 1);
+    if (!byConjunto.has(conjunto)) {
+      // guarda um nome “bonito” (o primeiro que aparecer)
+      byConjunto.set(conjunto, { displayName: String(conjuntoRaw ?? '').trim(), elementCounts: new Map() });
+    }
+
+    const bucket = byConjunto.get(conjunto);
+    bucket.elementCounts.set(elemento, (bucket.elementCounts.get(elemento) || 0) + 1);
   });
 
-  // Coordenadas (chaves NORMALIZADAS)
-  const coords = {
-    'FORTALEZA': [-3.7172, -38.5433],
-    'MARACANAU': [-3.8770, -38.6256],
-    'CAUCAIA': [-3.7361, -38.6533],
-    'JUAZEIRO DO NORTE': [-7.2133, -39.3153],
-    'SOBRAL': [-3.6856, -40.3442],
-    'CRATO': [-7.2337, -39.4097],
-    'ITAPIPOCA': [-3.4944, -39.5786],
-    'MARANGUAPE': [-3.8906, -38.6853],
-    'QUIXADA': [-4.9681, -39.0153],
-    'IGUATU': [-6.3614, -39.2978],
-    'PACATUBA': [-3.9808, -38.6181],
-    'AQUIRAZ': [-3.9017, -38.3914],
-    'HORIZONTE': [-4.0917, -38.4956],
-    'EUSEBIO': [-3.8936, -38.4508],
-    'CANINDE': [-4.3597, -39.3117],
-    'CRATEUS': [-5.1756, -40.6764],
-    'IPU': [-4.3256, -40.7109],
-    'NOVA RUSSAS': [-4.7044, -40.5669],
-    'QUIXERAMOBIM': [-5.0939, -39.3619],
-    'BOA VIAGEM': [-5.1310, -39.7336]
+  // ✅ suas coordenadas (em formato humano)
+  const coordenadasConjuntos = {
+    'NOVA RUSSAS': [-4.7058, -40.5659],
+    'MACAOCA': [-4.4519, -40.7262],          // Distrito (Madalena/CE)
+    'CANINDÉ': [-4.3583, -39.3116],
+    'QUIXERAMOBIM': [-5.1990, -39.2927],
+    'IPU': [-4.3220, -40.7107],
+    'INDEPENDÊNCIA': [-5.3960, -40.3080],
+    'ARARENDA': [-4.7448, -40.8311],
+    'BOA VIAGEM': [-5.1271, -39.7336],
+    'INHUPORANGA': [-4.4369, -40.8892],      // Distrito (Cariré/CE)
+    'SANTA QUITÉRIA': [-4.3324, -40.1572],
+    'CRATEÚS': [-5.1783, -40.6696],
+    'MONSENHOR TABOSA': [-4.7923, -40.0645],
+    'ARARAS I': [-4.2096, -40.4498],         // Distrito de Ararendá/CE
+    'BANABUIÚ': [-5.3054, -38.9182],
+    'QUIXADÁ': [-4.9716, -39.0161]
   };
 
-  const heatmap = [];
+  // ✅ normaliza as chaves das coordenadas
+  const coords = {};
+  const displayByKey = {}; // chave normalizada -> nome bonito do dicionário
+  for (const [k, v] of Object.entries(coordenadasConjuntos)) {
+    const nk = normKey(k);
+    coords[nk] = v;
+    displayByKey[nk] = k; // mantém acento/forma correta do conjunto
+  }
 
-  for (const [conjunto, elementos] of byConjunto.entries()) {
+  // ✅ resolve coordenada mesmo se vier "ARARAS I", "ARARAS 1", "ARARAS-I", etc.
+  function resolveCoords(conjuntoNorm) {
+    if (coords[conjuntoNorm]) return { coord: coords[conjuntoNorm], display: displayByKey[conjuntoNorm] };
+
+    // match parcial por melhor chave (mais longa)
+    let bestKey = null;
+    for (const key of Object.keys(coords)) {
+      if (conjuntoNorm.startsWith(key) || conjuntoNorm.includes(key)) {
+        if (!bestKey || key.length > bestKey.length) bestKey = key;
+      }
+    }
+
+    if (!bestKey) return null;
+    return { coord: coords[bestKey], display: displayByKey[bestKey] };
+  }
+
+  const heatmap = [];
+  const missing = [];
+
+  for (const [conjuntoNorm, bucket] of byConjunto.entries()) {
     // ✅ total de reiteradas por conjunto:
-    // soma as ocorrências APENAS dos elementos que repetiram >=2
+    // soma as ocorrências somente dos elementos repetidos (>=2)
     let reiteradasTotal = 0;
-    for (const count of elementos.values()) {
+    for (const count of bucket.elementCounts.values()) {
       if (count >= 2) reiteradasTotal += count;
     }
+    if (reiteradasTotal <= 0) continue;
 
-    // só entra se tiver “reiteradas” e se tiver coordenada do conjunto
-    if (reiteradasTotal > 0 && coords[conjunto]) {
-      heatmap.push({
-        lat: coords[conjunto][0],
-        lng: coords[conjunto][1],
-        intensity: reiteradasTotal,
-        conjunto
-      });
+    const resolved = resolveCoords(conjuntoNorm);
+    if (!resolved) {
+      missing.push(bucket.displayName || conjuntoNorm);
+      continue;
     }
+
+    heatmap.push({
+      lat: resolved.coord[0],
+      lng: resolved.coord[1],
+      intensity: reiteradasTotal,
+      conjunto: resolved.display // ✅ nome “bonito” vindo do seu dicionário
+    });
+  }
+
+  // Debug útil
+  if (heatmap.length === 0) {
+    console.warn('[HEATMAP] Nenhum ponto gerado. Exemplos de CONJUNTO:', Array.from(byConjunto.keys()).slice(0, 20));
+  }
+  if (missing.length) {
+    console.warn('[HEATMAP] CONJUNTO sem coords (primeiros 30):', missing.slice(0, 30));
   }
 
   return heatmap;
 }
+
 
 /* =========================
    FILTRO POR DATA
