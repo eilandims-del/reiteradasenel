@@ -1,10 +1,5 @@
 /**
  * Serviço de Dados - Lógica de negócio para rankings e análises
- *
- * ✅ AJUSTADO para o mapa por ALIMENTADOR via KML (linhas):
- * - mantém sufixo (ex: QXD01P3)
- * - cria "base" (ex: QXD01) para fallback quando a planilha não traz sufixo
- * - expõe helpers para o mapa.js pintar linhas por intensidade (0..50)
  */
 
 /* =========================
@@ -16,32 +11,18 @@ function normKey(v) {
     .trim()
     .toUpperCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')  // remove acentos
-    .replace(/[^\w\s]/g, ' ')        // pontuação vira espaço
-    .replace(/_/g, ' ')              // underscore vira espaço
-    .replace(/\s+/g, ' ')            // colapsa espaços
-    .trim();
-}
-
-// Key “dura” (sem espaços/pontuação) p/ casar alimentadores do KML
-export function normalizeAlimKey(v) {
-  return String(v ?? '')
-    .trim()
-    .toUpperCase()
-    .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w]/g, '') // remove tudo que não é letra/número/_
-    .replace(/_/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
-// base do alimentador (ex: QXD01) a partir de QXD01P3 / QXD01 / "QXD 01"
-export function baseFromAlimKey(v) {
-  const k = normalizeAlimKey(v);
-
-  // tenta achar: letras (2-4) + 2 dígitos (QXD01, ARR01, IPU01 etc)
-  const m = k.match(/^([A-Z]{2,4}\d{2})/);
-  return m ? m[1] : k;
+function extractAlimBase(name) {
+  const n = normKey(name);
+  const m = n.match(/([A-Z]{3}\s?\d{2})/);
+  if (!m) return n;
+  return m[1].replace(/\s+/g, '');
 }
 
 function getAlimentadorRaw(item) {
@@ -81,114 +62,53 @@ export function generateRankingElemento(data) {
 }
 
 /* =========================
-   CONTAGEM POR ALIMENTADOR (para KML)
+   HEATMAP POR ALIMENTADOR (KML)
 ========================= */
-/**
- * Retorna Map<alimKeyNormalizada, count>
- *
- * mode:
- *  - "TOTAL": total de ocorrências no alimentador
- *  - "REITERADAS": soma apenas incidências repetidas (>=2) dentro do alimentador
- */
-export function countByAlimentador(data, mode = 'TOTAL') {
-  const by = new Map(); // alimKey -> array items
+export function generateHeatmapByAlimentador(data, alimentadorCoords = {}) {
+  const byAlim = new Map(); // alim -> elemento -> count
 
-  for (const item of data) {
-    const raw = getAlimentadorRaw(item);
-    const key = normalizeAlimKey(raw);
-    if (!key) continue;
+  data.forEach(item => {
+    const alim = extractAlimBase(getAlimentadorRaw(item));
+    const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
+    if (!alim || !elemento) return;
 
-    if (!by.has(key)) by.set(key, []);
-    by.get(key).push(item);
-  }
+    if (!byAlim.has(alim)) byAlim.set(alim, new Map());
+    const mapElem = byAlim.get(alim);
+    mapElem.set(elemento, (mapElem.get(elemento) || 0) + 1);
+  });
 
-  const counts = new Map();
+  const heatmap = [];
+  const missing = [];
 
-  for (const [alimKey, items] of by.entries()) {
-    if (mode === 'TOTAL') {
-      counts.set(alimKey, items.length);
+  for (const [alim, elementos] of byAlim.entries()) {
+    let reiteradasTotal = 0;
+    for (const count of elementos.values()) {
+      if (count >= 2) reiteradasTotal += count;
+    }
+    if (reiteradasTotal <= 0) continue;
+
+    const coordInfo = alimentadorCoords[normKey(alim)];
+    if (!coordInfo) {
+      missing.push(alim);
       continue;
     }
 
-    // REITERADAS: incidência repetida dentro do alimentador
-    const incid = new Map();
-    for (const it of items) {
-      const id = String(it.INCIDENCIA ?? '').trim();
-      if (!id) continue;
-      incid.set(id, (incid.get(id) || 0) + 1);
-    }
-
-    let total = 0;
-    for (const c of incid.values()) {
-      if (c >= 2) total += c;
-    }
-    counts.set(alimKey, total);
+    heatmap.push({
+      lat: coordInfo.lat,
+      lng: coordInfo.lng,
+      intensity: reiteradasTotal,
+      label: coordInfo.display || alim
+    });
   }
 
-  return counts;
-}
+  console.log('[HEATMAP-ALIM] alimentadores lidos:', byAlim.size, 'pontos:', heatmap.length);
+  if (missing.length) console.warn('[HEATMAP-ALIM] sem coords (top 30):', missing.slice(0, 30));
 
-/**
- * Faz o "match" das contagens da planilha com as chaves do KML
- *
- * kmlSegmentKeys: ex: ["QXD01P3","QXD01P4","ARR01L1"...]
- *
- * strategy:
- *  - "EXACT": casa QXD01P3 com QXD01P3
- *  - "BASE": casa por base QXD01 e aplica pros segmentos desse alimentador
- */
-export function mapCountsToKmlSegments(countsPlanilha, kmlSegmentKeys, strategy = 'BASE') {
-  const out = new Map(); // kmlKeyOriginal -> count
-
-  // índice normalizado (planilha)
-  const idx = new Map();
-  for (const [k, v] of countsPlanilha.entries()) {
-    idx.set(normalizeAlimKey(k), Number(v || 0));
-  }
-
-  for (const segKeyRaw of kmlSegmentKeys) {
-    const segKeyNorm = normalizeAlimKey(segKeyRaw);
-    let val = 0;
-
-    if (strategy === 'EXACT') {
-      val = idx.get(segKeyNorm) || 0;
-    } else {
-      // BASE
-      const base = baseFromAlimKey(segKeyNorm);
-      val = idx.get(base) || 0;
-
-      // fallback extra: se por acaso a planilha tiver o sufixo e o base não achar
-      if (!val) val = idx.get(segKeyNorm) || 0;
-    }
-
-    out.set(segKeyRaw, val);
-  }
-
-  return out;
+  return heatmap;
 }
 
 /* =========================
-   INTENSIDADE / COR (0..50)
-========================= */
-export function intensity01(count, maxTarget = 50) {
-  const c = Number(count || 0);
-  if (c <= 0) return 0;
-  return Math.min(1, c / maxTarget);
-}
-
-// 0 => #ffcccc (claro) | 1 => #ff0000 (escuro)
-export function colorFromIntensity01(t) {
-  const clamp = (x) => Math.max(0, Math.min(255, x));
-  const r = 255;
-  const g = clamp(Math.round(204 - 204 * t));
-  const b = clamp(Math.round(204 - 204 * t));
-
-  const toHex = (n) => n.toString(16).padStart(2, '0');
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
-/* =========================
-   HEATMAP POR CONJUNTO (CIDADES) - mantém seu atual
+   HEATMAP POR CONJUNTO (CIDADES)
 ========================= */
 export function generateHeatmapByConjunto(data) {
   const byConjunto = new Map(); // conjunto -> elemento -> count
