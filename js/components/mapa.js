@@ -1,246 +1,323 @@
-import { generateHeatmapByAlimentador, generateHeatmapByConjunto } from '../services/data-service.js';
+import {
+  generateHeatmapByConjunto,
+  generateAlimentadorIntensityMap,
+  normKey,
+  extractAlimBase
+} from '../services/data-service.js';
 
 let map;
-let heatLayer;
-let markersLayer;
-let kmlLayer;
+let heatLayer;            // conjunto heat
+let markersLayer;         // conjunto bolinhas
+let alimentadorLayer;     // linhas do KML
+let legendControl;
+let modeControl;
 
-let uiMounted = false;
-let mode = 'CONJUNTO'; // 'CONJUNTO' | 'ALIMENTADOR'
+let currentMode = 'ALIMENTADOR'; // 'ALIMENTADOR' | 'CONJUNTO'
+let kmlLoaded = false;
 
-// alimentadorBaseNorm -> { lat, lng, display }
-let alimentadorCenters = {};
-// alimentadorBaseNorm -> array de linhas (cada linha = [[lat,lng],...])
-let alimentadorLines = {};
+// alimBase -> { segments: Array<Array<[lat,lng]>>, bounds: LatLngBounds }
+const kmlNetwork = new Map();
 
-// caminho do KML (você disse que está em assets)
-const KML_PATH = 'assets/doc.kml';
+// Ajuste aqui se o arquivo no assets tiver outro nome
+const KML_URL_CANDIDATES = [
+  'assets/doc.kml',
+  'assets/TRAMOS.kml',
+  'assets/tramos.kml',
+  'assets/TRAMOS.kmz', // se estiver kmz não vai parsear (precisa ser .kml)
+];
 
-/* =========================
-   HELPERS
-========================= */
-function normKey(v) {
-  return String(v ?? '')
-    .trim()
-    .toUpperCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/_/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+// ====== CORES (0..50 => mais escuro) ======
+// clamp 0..50, 50+ vira máximo.
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+function clampTo50(v) {
+  const n = Number(v || 0);
+  if (!isFinite(n)) return 0;
+  return Math.max(0, Math.min(50, n));
 }
 
-// base: ARR01 de ARR01L2, ARR 01 L2, etc
-function extractAlimBase(name) {
-  const n = normKey(name);
-  const m = n.match(/([A-Z]{3}\s?\d{2})/);
-  if (!m) return n;
-  return m[1].replace(/\s+/g, '');
-}
+// Escala simples: 0 cinza, 1..50 vai amarelo->laranja->vermelho escuro
+function colorForIntensity(v) {
+  const x = clampTo50(v) / 50; // 0..1
+  if (x <= 0) return '#9CA3AF'; // cinza
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
+  // Interpolação por faixas:
+  // 0..0.35: amarelo (#FDE047) -> laranja (#FB923C)
+  // 0.35..0.75: laranja (#FB923C) -> vermelho (#EF4444)
+  // 0.75..1: vermelho (#EF4444) -> vermelho escuro (#7F1D1D)
+  const lerp = (a, b, t) => a + (b - a) * t;
 
-// intensidade 0..50 => cor/vermelho + alpha
-function lineStyleByIntensity(intensity) {
-  const t = clamp(intensity, 0, 50) / 50; // 0..1
-  // vermelho com alpha crescendo (mais escuro quanto mais perto de 50)
-  const alpha = 0.15 + 0.85 * t; // 0.15..1
-  const weight = 2 + 5 * t;      // 2..7
-  return {
-    color: `rgba(255, 0, 0, ${alpha.toFixed(3)})`,
-    weight,
-    opacity: 1
+  const hexToRgb = (h) => {
+    const s = h.replace('#', '');
+    return {
+      r: parseInt(s.slice(0, 2), 16),
+      g: parseInt(s.slice(2, 4), 16),
+      b: parseInt(s.slice(4, 6), 16),
+    };
   };
-}
+  const rgbToHex = ({ r, g, b }) =>
+    '#' +
+    [r, g, b]
+      .map(v => Math.round(v).toString(16).padStart(2, '0'))
+      .join('');
 
-function ensureMapUI() {
-  if (uiMounted) return;
-  uiMounted = true;
+  const c1 = '#FDE047';
+  const c2 = '#FB923C';
+  const c3 = '#EF4444';
+  const c4 = '#7F1D1D';
 
-  const container = map.getContainer();
-  const wrap = document.createElement('div');
-  wrap.style.position = 'absolute';
-  wrap.style.top = '10px';
-  wrap.style.right = '10px';
-  wrap.style.zIndex = '800';
-  wrap.style.display = 'flex';
-  wrap.style.flexDirection = 'column';
-  wrap.style.gap = '8px';
+  let a, b, t;
 
-  // Toggle
-  const box = document.createElement('div');
-  box.style.background = 'rgba(255,255,255,0.92)';
-  box.style.border = '1px solid rgba(0,0,0,0.12)';
-  box.style.borderRadius = '10px';
-  box.style.padding = '10px';
-  box.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
-  box.style.fontFamily = 'Inter, system-ui, Arial';
-  box.style.fontSize = '12px';
-  box.style.fontWeight = '700';
-  box.innerHTML = `
-    <div style="margin-bottom:8px;">Mapa:</div>
-    <div style="display:flex; gap:6px;">
-      <button id="btnModeConj" style="padding:6px 10px;border-radius:8px;border:1px solid #ddd;cursor:pointer;">Conjunto</button>
-      <button id="btnModeAlim" style="padding:6px 10px;border-radius:8px;border:1px solid #ddd;cursor:pointer;">Alimentador</button>
-    </div>
-  `;
-
-  // Legenda 0..50
-  const legend = document.createElement('div');
-  legend.style.background = 'rgba(255,255,255,0.92)';
-  legend.style.border = '1px solid rgba(0,0,0,0.12)';
-  legend.style.borderRadius = '10px';
-  legend.style.padding = '10px';
-  legend.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
-  legend.style.fontFamily = 'Inter, system-ui, Arial';
-  legend.style.fontSize = '12px';
-  legend.style.fontWeight = '700';
-  legend.innerHTML = `
-    <div style="margin-bottom:8px;">Intensidade (0 → 50)</div>
-    <div style="height:10px;border-radius:8px;background: linear-gradient(90deg, rgba(255,0,0,0.15), rgba(255,0,0,1));"></div>
-    <div style="display:flex;justify-content:space-between;margin-top:6px;font-weight:800;">
-      <span>0</span><span>50+</span>
-    </div>
-    <div style="margin-top:6px;font-weight:600;opacity:.85;">
-      Quanto mais perto de 50, mais forte/escuro.
-    </div>
-  `;
-
-  wrap.appendChild(box);
-  wrap.appendChild(legend);
-  container.appendChild(wrap);
-
-  const btnConj = box.querySelector('#btnModeConj');
-  const btnAlim = box.querySelector('#btnModeAlim');
-
-  const setActive = () => {
-    const activeStyle = 'background:#0A4A8C;color:#fff;border-color:#0A4A8C;';
-    const inactiveStyle = 'background:#fff;color:#111;border-color:#ddd;';
-    if (mode === 'CONJUNTO') {
-      btnConj.style.cssText += activeStyle;
-      btnAlim.style.cssText += inactiveStyle;
-    } else {
-      btnAlim.style.cssText += activeStyle;
-      btnConj.style.cssText += inactiveStyle;
-    }
-  };
-
-  btnConj.addEventListener('click', () => {
-    mode = 'CONJUNTO';
-    setActive();
-    // força re-render na próxima updateHeatmap (o main chama sempre)
-  });
-
-  btnAlim.addEventListener('click', () => {
-    mode = 'ALIMENTADOR';
-    setActive();
-  });
-
-  setActive();
-}
-
-/* =========================
-   KML PARSER (LineString)
-========================= */
-function parseKmlLinesToIndex(kmlText) {
-  const parser = new DOMParser();
-  const xml = parser.parseFromString(kmlText, 'text/xml');
-
-  const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
-
-  const centers = {};
-  const linesByBase = {};
-
-  let totalLines = 0;
-
-  for (const pm of placemarks) {
-    const nameNode = pm.getElementsByTagName('name')[0];
-    const rawName = nameNode ? nameNode.textContent : '';
-    if (!rawName) continue;
-
-    const base = extractAlimBase(rawName);
-    const baseKey = normKey(base);
-
-    // pode ter múltiplos LineString por placemark
-    const lineStrings = Array.from(pm.getElementsByTagName('LineString'));
-    for (const ls of lineStrings) {
-      const coordsNode = ls.getElementsByTagName('coordinates')[0];
-      if (!coordsNode) continue;
-
-      const coordsText = coordsNode.textContent || '';
-      const pairs = coordsText
-        .trim()
-        .split(/\s+/g)
-        .map(s => s.trim())
-        .filter(Boolean)
-        .map(s => {
-          const [lng, lat] = s.split(',').map(Number);
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-          return [lat, lng];
-        })
-        .filter(Boolean);
-
-      if (pairs.length < 2) continue;
-
-      if (!linesByBase[baseKey]) linesByBase[baseKey] = [];
-      linesByBase[baseKey].push(pairs);
-      totalLines++;
-
-      // centro (média simples) para marker/heat
-      let sumLat = 0, sumLng = 0;
-      for (const [lat, lng] of pairs) { sumLat += lat; sumLng += lng; }
-      const cLat = sumLat / pairs.length;
-      const cLng = sumLng / pairs.length;
-
-      // guarda um centro (se já existe, faz média incremental simples)
-      if (!centers[baseKey]) {
-        centers[baseKey] = { lat: cLat, lng: cLng, display: base };
-      } else {
-        centers[baseKey] = {
-          lat: (centers[baseKey].lat + cLat) / 2,
-          lng: (centers[baseKey].lng + cLng) / 2,
-          display: centers[baseKey].display || base
-        };
-      }
-    }
+  if (x <= 0.35) {
+    a = hexToRgb(c1); b = hexToRgb(c2);
+    t = x / 0.35;
+  } else if (x <= 0.75) {
+    a = hexToRgb(c2); b = hexToRgb(c3);
+    t = (x - 0.35) / (0.75 - 0.35);
+  } else {
+    a = hexToRgb(c3); b = hexToRgb(c4);
+    t = (x - 0.75) / (1 - 0.75);
   }
 
-  console.log('[KML] alimentadores carregados:', Object.keys(centers).length, 'linhas:', totalLines);
+  const out = {
+    r: lerp(a.r, b.r, t),
+    g: lerp(a.g, b.g, t),
+    b: lerp(a.b, b.b, t),
+  };
+  return rgbToHex(out);
+}
 
-  return { centers, linesByBase };
+function opacityForIntensity(v) {
+  const x = clampTo50(v) / 50;
+  if (x <= 0) return 0.25;
+  return 0.45 + (0.55 * x); // 0.45..1.0
+}
+
+// ====== KML PARSER ======
+function parseKmlCoordinates(coordText) {
+  // coordText: "lon,lat,alt lon,lat,alt ..."
+  const pts = [];
+  const chunks = String(coordText || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  for (const c of chunks) {
+    const parts = c.split(',');
+    if (parts.length < 2) continue;
+    const lon = parseFloat(parts[0]);
+    const lat = parseFloat(parts[1]);
+    if (!isFinite(lat) || !isFinite(lon)) continue;
+    pts.push([lat, lon]);
+  }
+  return pts;
+}
+
+function getPlacemarkName(pm) {
+  // tenta <name>, senão styleUrl/id
+  const name = pm.querySelector('name')?.textContent?.trim();
+  if (name) return name;
+
+  const styleUrl = pm.querySelector('styleUrl')?.textContent?.trim();
+  if (styleUrl) return styleUrl.replace('#', '');
+
+  const id = pm.getAttribute('id');
+  if (id) return id;
+
+  return 'SEM_NOME';
+}
+
+async function fetchFirstAvailableKml() {
+  for (const url of KML_URL_CANDIDATES) {
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) continue;
+      const text = await r.text();
+      if (text && text.includes('<kml')) return { url, text };
+    } catch (_) {}
+  }
+  return null;
 }
 
 async function loadKmlOnce() {
-  if (Object.keys(alimentadorCenters).length > 0) return;
+  if (kmlLoaded) return;
+  kmlLoaded = true;
 
-  try {
-    const res = await fetch(KML_PATH, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-
-    const { centers, linesByBase } = parseKmlLinesToIndex(text);
-    alimentadorCenters = centers;
-    alimentadorLines = linesByBase;
-  } catch (e) {
-    console.warn('[KML] Falha ao carregar KML:', e);
-    alimentadorCenters = {};
-    alimentadorLines = {};
+  const res = await fetchFirstAvailableKml();
+  if (!res) {
+    console.warn('[KML] Não encontrei KML em assets. Verifique nome/URL.');
+    return;
   }
+
+  const xml = new DOMParser().parseFromString(res.text, 'text/xml');
+  const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
+
+  let totalSegments = 0;
+  let totalLines = 0;
+
+  for (const pm of placemarks) {
+    // pode ter múltiplas LineString ou MultiGeometry
+    const lineStrings = pm.getElementsByTagName('LineString');
+    if (!lineStrings || !lineStrings.length) continue;
+
+    const rawName = getPlacemarkName(pm);
+    const alimBase = extractAlimBase(rawName); // ARR01, IPU01...
+    if (!alimBase) continue;
+
+    for (const ls of Array.from(lineStrings)) {
+      const coordNode = ls.getElementsByTagName('coordinates')[0];
+      const coordsText = coordNode?.textContent;
+      const latlngs = parseKmlCoordinates(coordsText);
+      if (latlngs.length < 2) continue;
+
+      totalLines++;
+      totalSegments += Math.max(0, latlngs.length - 1);
+
+      if (!kmlNetwork.has(alimBase)) {
+        kmlNetwork.set(alimBase, {
+          segments: [],
+          bounds: L.latLngBounds(latlngs),
+          display: alimBase
+        });
+      }
+
+      const bucket = kmlNetwork.get(alimBase);
+      bucket.segments.push(latlngs);
+      bucket.bounds.extend(L.latLngBounds(latlngs));
+    }
+  }
+
+  console.log('[KML] carregado de:', res.url, '| alimentadores:', kmlNetwork.size, '| linhas:', totalLines, '| segmentos:', totalSegments);
 }
 
-/* =========================
-   EXPORTS
-========================= */
+// ====== CONTROLS (toggle + legenda) ======
+function addModeControl() {
+  if (modeControl) return;
+
+  modeControl = L.control({ position: 'topright' });
+  modeControl.onAdd = function () {
+    const div = L.DomUtil.create('div', 'leaflet-bar');
+    div.style.background = 'white';
+    div.style.padding = '8px';
+    div.style.borderRadius = '10px';
+    div.style.boxShadow = '0 6px 18px rgba(0,0,0,.12)';
+    div.style.display = 'flex';
+    div.style.gap = '6px';
+    div.style.alignItems = 'center';
+
+    const btnConj = L.DomUtil.create('button', '', div);
+    btnConj.textContent = 'Conjuntos';
+    btnConj.style.border = '1px solid #ddd';
+    btnConj.style.padding = '6px 10px';
+    btnConj.style.borderRadius = '8px';
+    btnConj.style.cursor = 'pointer';
+    btnConj.style.fontWeight = '700';
+
+    const btnAlim = L.DomUtil.create('button', '', div);
+    btnAlim.textContent = 'Alimentadores';
+    btnAlim.style.border = '1px solid #ddd';
+    btnAlim.style.padding = '6px 10px';
+    btnAlim.style.borderRadius = '8px';
+    btnAlim.style.cursor = 'pointer';
+    btnAlim.style.fontWeight = '700';
+
+    const setActive = () => {
+      const activeBg = '#0A4A8C';
+      const activeColor = 'white';
+      const idleBg = 'white';
+      const idleColor = '#111';
+
+      if (currentMode === 'CONJUNTO') {
+        btnConj.style.background = activeBg;
+        btnConj.style.color = activeColor;
+        btnAlim.style.background = idleBg;
+        btnAlim.style.color = idleColor;
+      } else {
+        btnAlim.style.background = activeBg;
+        btnAlim.style.color = activeColor;
+        btnConj.style.background = idleBg;
+        btnConj.style.color = idleColor;
+      }
+    };
+
+    setActive();
+
+    // impede o clique no mapa ao clicar nos botões
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+
+    btnConj.addEventListener('click', () => {
+      currentMode = 'CONJUNTO';
+      setActive();
+      // força re-render com os últimos dados (guardados no mapa.js)
+      if (window.__LAST_MAP_DATA__) updateHeatmap(window.__LAST_MAP_DATA__);
+    });
+
+    btnAlim.addEventListener('click', () => {
+      currentMode = 'ALIMENTADOR';
+      setActive();
+      if (window.__LAST_MAP_DATA__) updateHeatmap(window.__LAST_MAP_DATA__);
+    });
+
+    return div;
+  };
+
+  modeControl.addTo(map);
+}
+
+function addLegendControl() {
+  if (legendControl) return;
+
+  legendControl = L.control({ position: 'bottomright' });
+  legendControl.onAdd = function () {
+    const div = L.DomUtil.create('div', '');
+    div.style.background = 'white';
+    div.style.padding = '10px 12px';
+    div.style.borderRadius = '10px';
+    div.style.boxShadow = '0 6px 18px rgba(0,0,0,.12)';
+    div.style.fontSize = '12px';
+    div.style.lineHeight = '1.2';
+    div.style.minWidth = '170px';
+
+    const title = document.createElement('div');
+    title.textContent = 'Intensidade (0–50+)';
+    title.style.fontWeight = '800';
+    title.style.marginBottom = '8px';
+    div.appendChild(title);
+
+    const bar = document.createElement('div');
+    bar.style.height = '10px';
+    bar.style.borderRadius = '8px';
+    bar.style.border = '1px solid #e5e7eb';
+    bar.style.background = 'linear-gradient(90deg, #9CA3AF 0%, #FDE047 20%, #FB923C 55%, #EF4444 78%, #7F1D1D 100%)';
+    div.appendChild(bar);
+
+    const labels = document.createElement('div');
+    labels.style.display = 'flex';
+    labels.style.justifyContent = 'space-between';
+    labels.style.marginTop = '6px';
+    labels.innerHTML = `<span>0</span><span>25</span><span>50+</span>`;
+    div.appendChild(labels);
+
+    // trava interação no mapa
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+
+    return div;
+  };
+
+  legendControl.addTo(map);
+}
+
+// ====== INIT ======
 export function initMap() {
   const el = document.getElementById('mapaCeara');
   if (!el) return;
 
-  if (map) return; // evita duplicar
+  if (map) return;
 
-  map = L.map('mapaCeara').setView([-4.8, -39.5], 7);
+  map = L.map('mapaCeara', { preferCanvas: true }).setView([-4.8, -39.5], 7);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
@@ -248,60 +325,57 @@ export function initMap() {
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
-  kmlLayer = L.layerGroup().addTo(map);
+  alimentadorLayer = L.layerGroup().addTo(map);
 
-  ensureMapUI();
+  addModeControl();
+  addLegendControl();
 }
 
-export async function updateHeatmap(data) {
-  if (!map) initMap();
-  if (!map) return;
-
-  ensureMapUI();
-
-  // sempre garante KML carregado (pra modo ALIMENTADOR)
-  await loadKmlOnce();
-
-  // limpa layers
+// ====== RENDER MODOS ======
+function clearConjuntoLayers() {
   if (heatLayer) {
     map.removeLayer(heatLayer);
     heatLayer = null;
   }
   if (markersLayer) markersLayer.clearLayers();
-  if (kmlLayer) kmlLayer.clearLayers();
+}
 
-  if (!Array.isArray(data) || data.length === 0) return;
+function clearAlimentadorLayers() {
+  if (alimentadorLayer) alimentadorLayer.clearLayers();
+}
 
-  // escolhe modo
-  const points =
-    mode === 'ALIMENTADOR'
-      ? generateHeatmapByAlimentador(data, alimentadorCenters)
-      : generateHeatmapByConjunto(data);
+function renderConjunto(data) {
+  clearAlimentadorLayers();
 
-  if (!points.length) return;
+  const points = generateHeatmapByConjunto(data);
+  if (!points.length) {
+    clearConjuntoLayers();
+    return;
+  }
 
-  // cap em 50 (quanto mais perto de 50, mais forte)
-  const maxCap = 50;
-  const heatPoints = points.map(p => [p.lat, p.lng, clamp(p.intensity, 0, maxCap)]);
+  // remove heat anterior
+  if (heatLayer) map.removeLayer(heatLayer);
+  if (markersLayer) markersLayer.clearLayers();
 
-  heatLayer = L.heatLayer(heatPoints, {
-    radius: mode === 'ALIMENTADOR' ? 24 : 28,
-    blur: mode === 'ALIMENTADOR' ? 16 : 18,
-    maxZoom: 12,
-    max: maxCap,
-    gradient: {
-      0.0: 'rgba(255,0,0,0.10)',
-      0.5: 'rgba(255,0,0,0.45)',
-      1.0: 'rgba(255,0,0,1)'
+  heatLayer = L.heatLayer(
+    points.map(p => [p.lat, p.lng, p.intensity]),
+    {
+      radius: 28,
+      blur: 18,
+      maxZoom: 10,
+      gradient: {
+        0.30: 'blue',
+        0.60: 'orange',
+        1.00: 'red'
+      }
     }
-  }).addTo(map);
+  ).addTo(map);
 
-  // markers
-  for (const p of points) {
+  points.forEach(p => {
     L.circleMarker([p.lat, p.lng], {
-      radius: mode === 'ALIMENTADOR' ? 6 : 7,
+      radius: 7,
       color: '#ffffff',
-      fillColor: '#0A4A8C',
+      fillColor: '#003876',
       fillOpacity: 0.85,
       weight: 2
     })
@@ -310,41 +384,95 @@ export async function updateHeatmap(data) {
          Reiteradas (total): <b>${p.intensity}</b>`
       )
       .addTo(markersLayer);
-  }
+  });
 
-  // se for alimentador: desenha as linhas do KML e pinta por intensidade
-  if (mode === 'ALIMENTADOR') {
-    // index por base (ARR01 etc)
-    const intensityByBase = new Map();
-    for (const p of points) {
-      const baseKey = normKey(p.base || p.label);
-      intensityByBase.set(baseKey, p.intensity);
-    }
-
-    let drawn = 0;
-
-    for (const [baseKey, lines] of Object.entries(alimentadorLines)) {
-      const intensity = intensityByBase.get(baseKey) || 0;
-      if (intensity <= 0) continue;
-
-      const style = lineStyleByIntensity(intensity);
-
-      for (const latlngs of lines) {
-        L.polyline(latlngs, {
-          ...style
-        })
-          .bindPopup(
-            `<strong>${alimentadorCenters[baseKey]?.display || baseKey}</strong><br>
-             Intensidade: <b>${intensity}</b>`
-          )
-          .addTo(kmlLayer);
-        drawn++;
-      }
-    }
-
-    console.log('[MAP] linhas desenhadas:', drawn);
-  }
-
-  // enquadrar bounds
   map.fitBounds(points.map(p => [p.lat, p.lng]), { padding: [40, 40] });
+}
+
+function renderAlimentador(data) {
+  clearConjuntoLayers();
+  clearAlimentadorLayers();
+
+  // mapa de intensidade por ALIM base (ARR01, IPU01...)
+  const intensityMap = generateAlimentadorIntensityMap(data);
+
+  // Se não tem KML carregado, não tem o que desenhar
+  if (!kmlNetwork.size) {
+    console.warn('[ALIM] Sem KML carregado/parseado. Não há linhas para desenhar.');
+    return;
+  }
+
+  let anyHot = false;
+  let boundsHot = null;
+  let boundsAll = null;
+
+  // desenha todas as linhas; quem não tem intensidade fica cinza/leve
+  for (const [alimBase, info] of kmlNetwork.entries()) {
+    const total = intensityMap[alimBase]?.total || 0;
+
+    const color = colorForIntensity(total);
+    const opacity = opacityForIntensity(total);
+    const weight = total > 0 ? 4 : 2;
+
+    const popupHtml = `
+      <strong>Alimentador: ${alimBase}</strong><br>
+      Reiteradas (total): <b>${total}</b>
+    `;
+
+    for (const seg of info.segments) {
+      const pl = L.polyline(seg, {
+        color,
+        opacity,
+        weight,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
+
+      // clique + hover “profissional”
+      pl.bindPopup(popupHtml);
+
+      pl.on('mouseover', () => {
+        pl.setStyle({ weight: Math.max(weight, 5), opacity: Math.min(1, opacity + 0.15) });
+      });
+      pl.on('mouseout', () => {
+        pl.setStyle({ weight, opacity });
+      });
+
+      pl.addTo(alimentadorLayer);
+    }
+
+    // bounds
+    if (!boundsAll) boundsAll = info.bounds;
+    else boundsAll = boundsAll.extend(info.bounds);
+
+    if (total > 0) {
+      anyHot = true;
+      if (!boundsHot) boundsHot = info.bounds;
+      else boundsHot = boundsHot.extend(info.bounds);
+    }
+  }
+
+  // melhor zoom: se tiver “quentes”, foca neles; senão mostra tudo do KML
+  const b = anyHot ? boundsHot : boundsAll;
+  if (b) map.fitBounds(b, { padding: [40, 40] });
+}
+
+// ====== API usada pelo main.js ======
+export async function updateHeatmap(data) {
+  if (!map) initMap();
+  if (!map) return;
+
+  // guarda para o toggle poder re-renderizar sem depender do main.js
+  window.__LAST_MAP_DATA__ = data;
+
+  // KML é necessário para ALIMENTADOR
+  if (currentMode === 'ALIMENTADOR') {
+    await loadKmlOnce();
+  }
+
+  if (currentMode === 'CONJUNTO') {
+    renderConjunto(data);
+  } else {
+    renderAlimentador(data);
+  }
 }
