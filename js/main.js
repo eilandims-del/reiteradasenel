@@ -6,7 +6,7 @@ import { DataService } from './services/firebase-service.js';
 import { getAllColumns, getOcorrenciasByElemento } from './services/data-service.js';
 import { updateRanking, generateRankingText, setElementoFilter, setElementoSearch } from './components/ranking.js';
 import { updateCharts } from './components/charts.js';
-import { updateHeatmap, initMap } from './components/mapa.js';
+import { updateHeatmap, initMap } from './components/mapa.js'; 
 import { openModal, closeModal, initModalEvents, fillDetailsModal, exportDetailsToExcel } from './components/modal.js';
 import { copyToClipboard, showToast, debounce } from './utils/helpers.js';
 
@@ -103,20 +103,6 @@ function initEventListeners() {
     setElementoSearch('');
     searchElemento?.focus();
   });
-
-  /**
-   * ✅ NOVO: Modal do mapa "Ver mais" (detalhes do CONJUNTO)
-   * IDs esperados no index.html:
-   * - modalConjuntoDetalhes (container do modal)
-   * - fecharModalConjunto (botão X)
-   */
-  document.getElementById('fecharModalConjunto')?.addEventListener('click', () => closeModal('modalConjuntoDetalhes'));
-
-  // Fechar ao clicar fora (overlay)
-  const modalConjunto = document.getElementById('modalConjuntoDetalhes');
-  modalConjunto?.addEventListener('click', (e) => {
-    if (e.target === modalConjunto) closeModal('modalConjuntoDetalhes');
-  });
 }
 
 /**
@@ -130,6 +116,7 @@ function renderAll() {
   requestAnimationFrame(() => updateRanking(currentData));
   requestAnimationFrame(() => updateCharts(currentData));
   requestAnimationFrame(() => updateHeatmap(currentData));
+
 
   console.log('[RENDER] Renderização iniciada (assíncrona)');
 }
