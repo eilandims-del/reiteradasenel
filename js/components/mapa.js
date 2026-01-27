@@ -1,90 +1,55 @@
-/**
- * Componente Mapa - Mapa de calor do Ceará com Leaflet
- */
-
 import { generateHeatmapData } from '../services/data-service.js';
 
-let map = null;
-let heatLayer = null;
-let markersLayer = null;
+let map;
+let heatLayer;
 
-/**
- * Inicializar mapa
- */
 export function initMap() {
-  const mapContainer = document.getElementById('mapaCeara');
-  if (!mapContainer) return;
+  const el = document.getElementById('mapaCeara');
+  if (!el) return;
 
-  // se já existe, não recria
-  if (map) return;
-
-  // Centro do Ceará
-  map = L.map('mapaCeara', { scrollWheelZoom: true }).setView([-4.2250, -39.1353], 7);
+  map = L.map('mapaCeara').setView([-4.8, -39.5], 7);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 18
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
   }).addTo(map);
 }
 
-/**
- * Atualizar mapa de calor
- */
 export function updateHeatmap(data) {
   if (!map) initMap();
-  if (!map) return;
 
-  const heatmapPoints = generateHeatmapData(data);
+  const points = generateHeatmapData(data);
+  if (!points.length) return;
 
-  if (!heatmapPoints || heatmapPoints.length === 0) {
-    console.warn('[MAPA] Sem pontos para heatmap. Verifique CONJUNTO x coordenadas.');
-    return;
-  }
+  if (heatLayer) map.removeLayer(heatLayer);
 
-  // remove heat anterior
-  if (heatLayer) {
-    map.removeLayer(heatLayer);
-    heatLayer = null;
-  }
-
-  // remove marcadores anteriores
-  if (markersLayer) {
-    map.removeLayer(markersLayer);
-    markersLayer = null;
-  }
-
-  const points = heatmapPoints.map(p => [p.lat, p.lng, p.intensity]);
-
-  if (typeof L.heatLayer === 'function') {
-    heatLayer = L.heatLayer(points, {
+  heatLayer = L.heatLayer(
+    points.map(p => [p.lat, p.lng, p.intensity]),
+    {
       radius: 28,
       blur: 18,
-      maxZoom: 17
-    }).addTo(map);
-  } else {
-    console.error('[MAPA] leaflet.heat não carregou. L.heatLayer não existe.');
-    return;
-  }
+      maxZoom: 10,
+      gradient: {
+        0.3: 'blue',
+        0.6: 'orange',
+        1.0: 'red'
+      }
+    }
+  ).addTo(map);
 
-  // camada de marcadores
-  markersLayer = L.layerGroup().addTo(map);
-
-  heatmapPoints.forEach(point => {
-    L.circleMarker([point.lat, point.lng], {
-      radius: 8,
-      weight: 2,
-      opacity: 1,
+  points.forEach(p => {
+    L.circleMarker([p.lat, p.lng], {
+      radius: 7,
+      color: '#ffffff',
+      fillColor: '#003876',
       fillOpacity: 0.85
     })
-      .bindPopup(`<strong>Ocorrências:</strong> ${point.intensity}`)
-      .addTo(markersLayer);
+      .bindPopup(
+        `<strong>${p.conjunto}</strong><br>
+         Intensidade de reiterações: <b>${p.intensity}</b>`
+      )
+      .addTo(map);
   });
 
-  // enquadrar bounds
-  const bounds = L.latLngBounds(heatmapPoints.map(p => [p.lat, p.lng]));
-  map.fitBounds(bounds, { padding: [40, 40] });
-
-  // FIX: Leaflet às vezes não renderiza direito se o container acabou de aparecer
-  setTimeout(() => map.invalidateSize(), 120);
+  map.fitBounds(points.map(p => [p.lat, p.lng]), { padding: [40, 40] });
 }
-    
