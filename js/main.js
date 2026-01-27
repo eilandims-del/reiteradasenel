@@ -6,7 +6,7 @@ import { DataService } from './services/firebase-service.js';
 import { getAllColumns, getOcorrenciasByElemento } from './services/data-service.js';
 import { updateRanking, generateRankingText, setElementoFilter, setElementoSearch } from './components/ranking.js';
 import { updateCharts } from './components/charts.js';
-/** import { updateHeatmap, initMap } from './components/mapa.js';  */
+import { updateHeatmap, initMap } from './components/mapa.js'; 
 import { openModal, closeModal, initModalEvents, fillDetailsModal, exportDetailsToExcel } from './components/modal.js';
 import { copyToClipboard, showToast, debounce } from './utils/helpers.js';
 
@@ -19,7 +19,7 @@ let selectedAdditionalColumns = [];
 async function init() {
   initModalEvents();
   initEventListeners();
-  /** initMap(); */
+  initMap();
 
   // Economia: não carrega tudo no F5
   renderEmptyState();
@@ -115,6 +115,8 @@ function renderAll() {
 
   requestAnimationFrame(() => updateRanking(currentData));
   requestAnimationFrame(() => updateCharts(currentData));
+  requestAnimationFrame(() => updateHeatmap(currentData));
+
 
   console.log('[RENDER] Renderização iniciada (assíncrona)');
 }
