@@ -1,64 +1,101 @@
-/**
- * Serviço de Dados - Lógica de negócio para rankings e análises
- */
-
-import { DataService } from './firebase-service.js';
-
 /* =========================
-   RANKING POR ELEMENTO
+   HELPERS (interno do data-service)
 ========================= */
-export function generateRankingElemento(data) {
-  const elementos = {};
-
-  data.forEach(item => {
-    const elemento = item.ELEMENTO || '';
-    if (!elemento) return;
-
-    if (!elementos[elemento]) elementos[elemento] = [];
-    elementos[elemento].push(item);
-  });
-
-  return Object.entries(elementos)
-    .filter(([_, ocorrencias]) => ocorrencias.length > 1)
-    .map(([elemento, ocorrencias]) => ({
-      elemento,
-      count: ocorrencias.length,
-      ocorrencias
-    }))
-    .sort((a, b) => b.count - a.count);
-}
-
-/* =========================
-   MAPA DE CALOR POR REITERAÇÃO
-========================= */
-/**
- * Gerar dados para mapa de calor (baseado em CONJUNTO)
- * FIX: normaliza CONJUNTO (remove acentos, espaços duplicados, etc)
- * e normaliza as chaves do dicionário de coordenadas.
- */
-export function generateHeatmapData(data) {
+function normalizeText(v) {
+    return String(v ?? '')
+      .replace(/\r?\n|\r/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  
+  function normalizeKey(key) {
+    return String(key || '')
+      .toUpperCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/\./g, '');
+  }
+  
+  function getValueSmart(obj, key) {
+    if (!obj) return '';
+  
+    // direto
+    if (obj[key] != null) return obj[key];
+  
+    // variações simples
+    const keyNoDot = String(key).replace(/\./g, '');
+    if (obj[keyNoDot] != null) return obj[keyNoDot];
+  
+    const upper = String(key).toUpperCase();
+    const lower = String(key).toLowerCase();
+    if (obj[upper] != null) return obj[upper];
+    if (obj[lower] != null) return obj[lower];
+  
+    // busca por normalização
+    const target = normalizeKey(key);
+    for (const k in obj) {
+      if (normalizeKey(k) === target) return obj[k];
+    }
+  
+    return '';
+  }
+  
+  /* =========================
+     RANKING POR ELEMENTO (robusto)
+  ========================= */
+  export function generateRankingElemento(data, { minCount = 1 } = {}) {
+    const elementos = new Map();
+  
+    data.forEach((item) => {
+      const raw = getValueSmart(item, 'ELEMENTO');
+      const elemento = normalizeText(raw);
+      if (!elemento) return;
+  
+      if (!elementos.has(elemento)) elementos.set(elemento, []);
+      elementos.get(elemento).push(item);
+    });
+  
+    return Array.from(elementos.entries())
+      .filter(([_, ocorrencias]) => ocorrencias.length >= minCount)
+      .map(([elemento, ocorrencias]) => ({
+        elemento,
+        count: ocorrencias.length,
+        ocorrencias
+      }))
+      .sort((a, b) => b.count - a.count);
+  }
+  
+  export function getOcorrenciasByElemento(data, elemento) {
+    const alvo = normalizeText(elemento);
+    return data.filter((i) => normalizeText(getValueSmart(i, 'ELEMENTO')) === alvo);
+  }
+  
+  /* =========================
+     MAPA DE CALOR POR REITERAÇÃO (robusto)
+  ========================= */
+  export function generateHeatmapData(data) {
     const conjuntosCount = {};
   
-    const normalizeKey = (v) => {
-      return String(v || '')
-        .trim()
+    const normalizeConjuntoKey = (v) => {
+      return normalizeText(v)
         .toUpperCase()
         .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')     // remove acentos
-        .replace(/[^\w\s]/g, ' ')            // remove pontuação/hífens
-        .replace(/\s+/g, ' ')                // colapsa espaços
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
     };
   
-    // Conta ocorrências por CONJUNTO
-    data.forEach(item => {
-      const conjuntoRaw = item.CONJUNTO || item['CONJUNTO'] || '';
-      const conjunto = normalizeKey(conjuntoRaw);
+    // Conta ocorrências por CONJUNTO (usando getter smart)
+    data.forEach((item) => {
+      const conjuntoRaw = getValueSmart(item, 'CONJUNTO');
+      const conjunto = normalizeConjuntoKey(conjuntoRaw);
       if (!conjunto) return;
       conjuntosCount[conjunto] = (conjuntosCount[conjunto] || 0) + 1;
     });
   
-    // Coordenadas (AGORA com chaves normalizadas)
     const coordenadasConjuntosRaw = {
       'FORTALEZA': [-3.7172, -38.5433],
       'MARACANAU': [-3.8770, -38.6256],
@@ -81,7 +118,6 @@ export function generateHeatmapData(data) {
       'BARBALHA': [-7.3056, -39.3036],
       'ARACATI': [-4.5606, -37.7717],
   
-      // os que você listou:
       'ARARAS I': [-4.2096, -40.4498],
       'IPU': [-4.3256, -40.7109],
       'INDEPENDENCIA': [-5.3964, -40.3086],
@@ -96,10 +132,10 @@ export function generateHeatmapData(data) {
       'INHUPORANGA': [-4.0908, -39.0585],
     };
   
-    // Normaliza as chaves do dicionário uma vez
+    // normaliza chaves 1x
     const coordenadasConjuntos = {};
     Object.entries(coordenadasConjuntosRaw).forEach(([k, v]) => {
-      coordenadasConjuntos[normalizeKey(k)] = v;
+      coordenadasConjuntos[normalizeConjuntoKey(k)] = v;
     });
   
     const heatmapPoints = [];
@@ -108,25 +144,17 @@ export function generateHeatmapData(data) {
     Object.entries(conjuntosCount).forEach(([conjuntoNorm, count]) => {
       const coords = coordenadasConjuntos[conjuntoNorm];
       if (coords) {
-        heatmapPoints.push({
-          lat: coords[0],
-          lng: coords[1],
-          intensity: count
-        });
+        heatmapPoints.push({ lat: coords[0], lng: coords[1], intensity: count });
       } else {
         missing.push({ conjunto: conjuntoNorm, count });
       }
     });
   
-    // DEBUG: ajuda você a ver por que não aparece
     if (!heatmapPoints.length) {
-      console.warn('[HEATMAP] Nenhum ponto gerado. Exemplos de CONJUNTO (normalizado):',
+      console.warn('[HEATMAP] Nenhum ponto gerado. Exemplos de CONJUNTO normalizado:',
         Object.keys(conjuntosCount).slice(0, 25)
       );
-    } else {
-      console.log('[HEATMAP] Pontos gerados:', heatmapPoints.length);
     }
-  
     if (missing.length) {
       console.warn('[HEATMAP] CONJUNTOS sem coordenadas (top 15):',
         missing.sort((a,b) => b.count - a.count).slice(0, 15)
@@ -136,28 +164,3 @@ export function generateHeatmapData(data) {
     return heatmapPoints;
   }
   
-
-/* =========================
-   FILTRO POR DATA
-========================= */
-export function filterByDateRange(data, di, df) {
-  if (!di && !df) return data;
-
-  return data.filter(item => {
-    const d = item.DATA;
-    if (!d) return false;
-    if (di && d < di) return false;
-    if (df && d > df) return false;
-    return true;
-  });
-}
-
-export function getAllColumns(data) {
-  const cols = new Set();
-  data.forEach(i => Object.keys(i).forEach(k => cols.add(k)));
-  return Array.from(cols);
-}
-
-export function getOcorrenciasByElemento(data, elemento) {
-  return data.filter(i => i.ELEMENTO === elemento);
-}
