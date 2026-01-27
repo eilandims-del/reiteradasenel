@@ -5,7 +5,7 @@
 /**
  * Colunas obrigatórias que devem estar presentes
  */
-const REQUIRED_COLUMNS = ['INCIDENCIA', 'CAUSA', 'ALIMENT.', 'DATA', 'ELEMENTO', 'CONJUNTO'];
+const REQUIRED_COLUMNS = ['INCIDENCIA', 'CAUSA', 'ALIMENT.', 'DATA', 'CONJUNTO'];
 
 /**
  * Normalizar nome da coluna (remove espaços, acentos, etc.)
@@ -23,30 +23,33 @@ function normalizeColumnName(name) {
  * Note: headers já devem estar normalizados
  */
 function validateStructure(headers) {
-    // Normalizar as colunas obrigatórias para comparar com headers normalizados
-    const normalizedRequiredColumns = REQUIRED_COLUMNS.map(col => normalizeColumnName(col));
-    
-    // Verificar quais colunas estão faltando
-    const missingNormalizedColumns = normalizedRequiredColumns.filter(normalizedCol => 
-        !headers.includes(normalizedCol)
-    );
-    
-    if (missingNormalizedColumns.length > 0) {
-        // Mapear de volta para nomes originais para mensagem de erro
-        const missingOriginalColumns = missingNormalizedColumns.map(normalizedCol => {
-            // Tentar encontrar o nome original na lista REQUIRED_COLUMNS
-            const original = REQUIRED_COLUMNS.find(col => normalizeColumnName(col) === normalizedCol);
-            return original || normalizedCol;
-        });
-        
-        return {
-            valid: false,
-            error: `Colunas obrigatórias faltando: ${missingOriginalColumns.join(', ')}`
-        };
+    const required = REQUIRED_COLUMNS.map(col => normalizeColumnName(col));
+  
+    // ✅ precisa ter ELEMENTO OU ELEMENTOS
+    const hasElemento = headers.includes('ELEMENTO') || headers.includes('ELEMENTOS');
+  
+    const missing = required.filter(req => !headers.includes(req));
+  
+    if (missing.length > 0 || !hasElemento) {
+      const faltando = [];
+  
+      // volta “bonito” na mensagem
+      missing.forEach(norm => {
+        const original = REQUIRED_COLUMNS.find(col => normalizeColumnName(col) === norm);
+        faltando.push(original || norm);
+      });
+  
+      if (!hasElemento) faltando.push('ELEMENTO (ou ELEMENTOS)');
+  
+      return {
+        valid: false,
+        error: `Colunas obrigatórias faltando: ${faltando.join(', ')}`
+      };
     }
-
+  
     return { valid: true };
-}
+  }
+  
 
 /**
  * Normalizar dados da linha
@@ -69,7 +72,11 @@ function normalizeRow(row, headers) {
         
         normalized[normalizedHeader] = value;
     });
-
+  // ✅ compatibilidade: se vier ELEMENTOS, copia para ELEMENTO
+  if (!normalized.ELEMENTO && normalized.ELEMENTOS) {
+    normalized.ELEMENTO = normalized.ELEMENTOS;
+  }
+  
     return normalized;
 }
 

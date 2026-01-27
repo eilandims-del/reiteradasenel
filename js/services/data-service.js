@@ -11,7 +11,7 @@ export function generateRankingElemento(data) {
   const elementos = {};
 
   data.forEach(item => {
-    const elemento = item.ELEMENTO || '';
+    const elemento = item.ELEMENTO || item.ELEMENTOS || '';
     if (!elemento) return;
 
     if (!elementos[elemento]) elementos[elemento] = [];
@@ -27,6 +27,7 @@ export function generateRankingElemento(data) {
     }))
     .sort((a, b) => b.count - a.count);
 }
+
 
 /* =========================
    MAPA DE CALOR POR REITERAÇÃO
@@ -44,13 +45,10 @@ export function generateHeatmapData(data) {
 
   data.forEach(item => {
     const conjunto = normalize(item.CONJUNTO);
-    const elemento = normalize(item.ELEMENTO);
+    const elemento = normalize(item.ELEMENTO || item.ELEMENTOS); // ✅ aceita os 2
     if (!conjunto || !elemento) return;
 
-    if (!byConjunto.has(conjunto)) {
-      byConjunto.set(conjunto, new Map());
-    }
-
+    if (!byConjunto.has(conjunto)) byConjunto.set(conjunto, new Map());
     const mapElem = byConjunto.get(conjunto);
     mapElem.set(elemento, (mapElem.get(elemento) || 0) + 1);
   });
@@ -82,17 +80,19 @@ export function generateHeatmapData(data) {
   const heatmap = [];
 
   for (const [conjunto, elementos] of byConjunto.entries()) {
-    let intensidade = 0;
-
+    // ✅ total de reiteradas por conjunto:
+    // soma as ocorrências APENAS dos elementos que repetiram >=2
+    let reiteradasTotal = 0;
     for (const count of elementos.values()) {
-      if (count >= 2) intensidade += count;
+      if (count >= 2) reiteradasTotal += count;
     }
 
-    if (intensidade > 0 && coords[conjunto]) {
+    // só entra se tiver “reiteradas” e se tiver coordenada do conjunto
+    if (reiteradasTotal > 0 && coords[conjunto]) {
       heatmap.push({
         lat: coords[conjunto][0],
         lng: coords[conjunto][1],
-        intensity: intensidade,
+        intensity: reiteradasTotal,
         conjunto
       });
     }
