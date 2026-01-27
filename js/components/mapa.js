@@ -1,25 +1,11 @@
-import {
-  generateHeatmapByAlimentador,
-  generateHeatmapByConjunto
-} from '../services/data-service.js';
-
-let map;
-let heatLayer;
-let markersLayer;
-
-let kmlLinesLayer;          // ✅ camada das linhas (alimentadores)
-let alimentadorCoords = null;
-let alimentadorLines = null; // ✅ prefixo -> GeoJSON feature(s)
-let kmlLoading = null;
-
-let currentMode = 'ALIMENTADOR'; // ALIMENTADOR | CONJUNTO
-let lastData = [];
-
-const MAX_INTENSITY = 50;
+/**
+ * Serviço de Dados - Lógica de negócio para rankings e análises
+ */
 
 /* =========================
-   HELPERS
+   HELPERS GERAIS
 ========================= */
+
 function normKey(v) {
   return String(v ?? '')
     .trim()
@@ -27,388 +13,188 @@ function normKey(v) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^\w\s]/g, ' ')
+    .replace(/_/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function extractAlimPrefix(nameNorm) {
-  // tenta pegar algo como QXD01 / IPU02 / etc
-  const m = nameNorm.match(/([A-Z]{3}\s?\d{2})/);
-  if (!m) return null;
+function extractAlimBase(name) {
+  const n = normKey(name);
+  const m = n.match(/([A-Z]{3}\s?\d{2})/);
+  if (!m) return n;
   return m[1].replace(/\s+/g, '');
 }
 
-function clamp01(x) {
-  return Math.max(0, Math.min(1, x));
+function getAlimentadorRaw(item) {
+  return (
+    item.ALIMENT ||
+    item.ALIMENTADOR ||
+    item.ALIMEN ||
+    item.ALIM ||
+    item['ALIMENT.'] ||
+    item['ALIMEN.'] ||
+    ''
+  );
 }
 
 /* =========================
-   KML -> (coords + lines)
+   RANKING POR ELEMENTO
 ========================= */
-async function loadKML(url = 'assets/doc.kml') {
-  if (kmlLoading) return kmlLoading;
+export function generateRankingElemento(data) {
+  const elementos = {};
 
-  const norm = (v) =>
-    String(v ?? '')
-      .trim()
-      .toUpperCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\w\s]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+  data.forEach(item => {
+    const elemento = item.ELEMENTO || item.ELEMENTOS || '';
+    if (!elemento) return;
 
-  function extractAlimKey(nameRaw) {
-    const s = norm(nameRaw)
-      .replace(/\bALIMENTADOR\b/g, '')
-      .replace(/\bALIMENT\b/g, '')
-      .replace(/\bALIM\b/g, '')
-      .replace(/\bCIRCUITO\b/g, '')
-      .trim();
+    if (!elementos[elemento]) elementos[elemento] = [];
+    elementos[elemento].push(item);
+  });
 
-    // 1) letras + números (QXD01, IPU02, etc)
-    let m = s.match(/\b([A-Z]{2,6}\s?\d{1,3})\b/);
-    if (m) return m[1].replace(/\s+/g, '');
-
-    // 2) fallback: primeiro token
-    const tok = s.split(' ')[0];
-    return tok || null;
-  }
-
-  function parseCoordString(coordText) {
-    // KML: "lon,lat,alt lon,lat,alt ..."
-    const parts = String(coordText || '').trim().split(/\s+/g);
-    const coords = [];
-    for (const p of parts) {
-      const [lonStr, latStr] = p.split(',');
-      const lon = Number(lonStr);
-      const lat = Number(latStr);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) coords.push([lat, lon]);
-    }
-    return coords;
-  }
-
-  kmlLoading = (async () => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Falha ao carregar KML: ${res.status} ${res.statusText}`);
-
-    const kmlText = await res.text();
-    const xml = new DOMParser().parseFromString(kmlText, 'text/xml');
-
-    const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
-
-    const coordsOut = {};           // keyNorm -> {lat,lng,display}
-    const byKey = new Map();        // keyDisplay -> array de latlng arrays (polylines)
-    const centroidAcc = new Map();  // keyNorm -> {sumLat,sumLng,n,display}
-
-    for (const pm of placemarks) {
-      const nameNode = pm.getElementsByTagName('name')[0];
-      const nameRaw = nameNode ? nameNode.textContent : '';
-      const keyDisplay = extractAlimKey(nameRaw);
-      if (!keyDisplay) continue;
-
-      const keyNorm = norm(keyDisplay);
-
-      // 1) Se existir Point, usa (nem sempre existe)
-      const pointNode = pm.getElementsByTagName('Point')[0];
-      if (pointNode) {
-        const coordNode = pointNode.getElementsByTagName('coordinates')[0];
-        if (coordNode) {
-          const pts = parseCoordString(coordNode.textContent);
-          if (pts.length) {
-            const [lat, lng] = pts[0];
-            coordsOut[keyNorm] = { lat, lng, display: keyDisplay };
-          }
-        }
-      }
-
-      // 2) Linhas: LineString (vamos usar para desenhar E para centroide)
-      const lineStrings = Array.from(pm.getElementsByTagName('LineString'));
-      for (const ls of lineStrings) {
-        const coordNode = ls.getElementsByTagName('coordinates')[0];
-        if (!coordNode) continue;
-
-        const latlngs = parseCoordString(coordNode.textContent);
-        if (!latlngs.length) continue;
-
-        // guarda as linhas pra renderizar
-        if (!byKey.has(keyDisplay)) byKey.set(keyDisplay, []);
-        byKey.get(keyDisplay).push(latlngs);
-
-        // acumula para centroide (se não tiver Point)
-        if (!centroidAcc.has(keyNorm)) {
-          centroidAcc.set(keyNorm, { sumLat: 0, sumLng: 0, n: 0, display: keyDisplay });
-        }
-        const acc = centroidAcc.get(keyNorm);
-        for (const [lat, lng] of latlngs) {
-          acc.sumLat += lat;
-          acc.sumLng += lng;
-          acc.n += 1;
-        }
-      }
-    }
-
-    // ✅ Se não tinha Point, cria coordenada a partir do centroide das linhas
-    for (const [keyNorm, acc] of centroidAcc.entries()) {
-      if (!coordsOut[keyNorm] && acc.n > 0) {
-        coordsOut[keyNorm] = {
-          lat: acc.sumLat / acc.n,
-          lng: acc.sumLng / acc.n,
-          display: acc.display
-        };
-      }
-    }
-
-    alimentadorCoords = coordsOut;
-    alimentadorLines = byKey;
-
-    console.log('[KML] alimentadores carregados:', Object.keys(coordsOut).length, 'linhas:', byKey.size);
-
-    return { coordsOut, byKey };
-  })();
-
-  return kmlLoading;
+  return Object.entries(elementos)
+    .filter(([_, ocorrencias]) => ocorrencias.length > 1)
+    .map(([elemento, ocorrencias]) => ({
+      elemento,
+      count: ocorrencias.length,
+      ocorrencias
+    }))
+    .sort((a, b) => b.count - a.count);
 }
-
-
 
 /* =========================
-   UI: Toggle (simples)
+   HEATMAP POR ALIMENTADOR (KML)
 ========================= */
-function injectSmallCSSOnce() {
-  if (document.getElementById('mapExtrasCSS')) return;
-  const style = document.createElement('style');
-  style.id = 'mapExtrasCSS';
-  style.textContent = `
-    .map-toggle{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}
-    .map-toggle .tbtn{border:1px solid rgba(10,74,140,.18);background:rgba(255,255,255,.9);padding:8px 10px;border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;color:#0A4A8C}
-    .map-toggle .tbtn.active{background:#0A4A8C;color:#fff;border-color:#0A4A8C}
-  `;
-  document.head.appendChild(style);
+export function generateHeatmapByAlimentador(data, alimentadorCoords = {}) {
+  const byAlim = new Map(); // alim -> elemento -> count
+
+  data.forEach(item => {
+    const alim = extractAlimBase(getAlimentadorRaw(item));
+    const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
+    if (!alim || !elemento) return;
+
+    if (!byAlim.has(alim)) byAlim.set(alim, new Map());
+    const mapElem = byAlim.get(alim);
+    mapElem.set(elemento, (mapElem.get(elemento) || 0) + 1);
+  });
+
+  const heatmap = [];
+  const missing = [];
+
+  for (const [alim, elementos] of byAlim.entries()) {
+    let reiteradasTotal = 0;
+    for (const count of elementos.values()) {
+      if (count >= 2) reiteradasTotal += count;
+    }
+    if (reiteradasTotal <= 0) continue;
+
+    const coordInfo = alimentadorCoords[normKey(alim)];
+    if (!coordInfo) {
+      missing.push(alim);
+      continue;
+    }
+
+    heatmap.push({
+      lat: coordInfo.lat,
+      lng: coordInfo.lng,
+      intensity: reiteradasTotal,
+      label: coordInfo.display || alim
+    });
+  }
+
+  console.log('[HEATMAP-ALIM] alimentadores lidos:', byAlim.size, 'pontos:', heatmap.length);
+  if (missing.length) console.warn('[HEATMAP-ALIM] sem coords (top 30):', missing.slice(0, 30));
+
+  return heatmap;
 }
 
-function ensureToggleUI() {
-  const mapEl = document.getElementById('mapaCeara');
-  if (!mapEl) return;
-  if (document.getElementById('mapToggleWrap')) return;
+/* =========================
+   HEATMAP POR CONJUNTO (CIDADES)
+========================= */
+export function generateHeatmapByConjunto(data) {
+  const byConjunto = new Map(); // conjunto -> elemento -> count
 
-  injectSmallCSSOnce();
+  data.forEach(item => {
+    const conjuntoRaw = item.CONJUNTO;
+    const conjunto = normKey(conjuntoRaw);
+    const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
+    if (!conjunto || !elemento) return;
 
-  const wrap = document.createElement('div');
-  wrap.id = 'mapToggleWrap';
-  wrap.className = 'map-toggle';
-  wrap.innerHTML = `
-    <button id="btnModeAlim" class="tbtn">ALIMENTADOR (KML)</button>
-    <button id="btnModeConj" class="tbtn">CONJUNTO (Cidades)</button>
-  `;
-  mapEl.parentNode.insertBefore(wrap, mapEl);
+    if (!byConjunto.has(conjunto)) {
+      byConjunto.set(conjunto, {
+        display: String(conjuntoRaw ?? '').trim(),
+        elementCounts: new Map()
+      });
+    }
 
-  const btnAlim = document.getElementById('btnModeAlim');
-  const btnConj = document.getElementById('btnModeConj');
+    const bucket = byConjunto.get(conjunto);
+    bucket.elementCounts.set(elemento, (bucket.elementCounts.get(elemento) || 0) + 1);
+  });
 
-  const setActive = () => {
-    btnAlim?.classList.toggle('active', currentMode === 'ALIMENTADOR');
-    btnConj?.classList.toggle('active', currentMode === 'CONJUNTO');
+  const coordenadasConjuntos = {
+    'NOVA RUSSAS': [-4.7058, -40.5659],
+    'MACAOCA': [-4.4519, -40.7262],
+    'CANINDÉ': [-4.3583, -39.3116],
+    'QUIXERAMOBIM': [-5.1990, -39.2927],
+    'IPU': [-4.3220, -40.7107],
+    'INDEPENDÊNCIA': [-5.3960, -40.3080],
+    'ARARENDA': [-4.7448, -40.8311],
+    'BOA VIAGEM': [-5.1271, -39.7336],
+    'INHUPORANGA': [-4.4369, -40.8892],
+    'SANTA QUITÉRIA': [-4.3324, -40.1572],
+    'CRATEÚS': [-5.1783, -40.6696],
+    'MONSENHOR TABOSA': [-4.7923, -40.0645],
+    'ARARAS I': [-4.2096, -40.4498],
+    'BANABUIÚ': [-5.3054, -38.9182],
+    'QUIXADÁ': [-4.9716, -39.0161]
   };
 
-  btnAlim?.addEventListener('click', async () => {
-    currentMode = 'ALIMENTADOR';
-    setActive();
-    await renderAllLayers(lastData);
+  const coords = {};
+  const displayByKey = {};
+  Object.entries(coordenadasConjuntos).forEach(([k, v]) => {
+    const nk = normKey(k);
+    coords[nk] = v;
+    displayByKey[nk] = k;
   });
 
-  btnConj?.addEventListener('click', async () => {
-    currentMode = 'CONJUNTO';
-    setActive();
-    await renderAllLayers(lastData);
-  });
+  const heatmap = [];
+  const missing = [];
 
-  setActive();
-}
-
-/* =========================
-   INIT MAP
-========================= */
-export function initMap() {
-  const el = document.getElementById('mapaCeara');
-  if (!el) return;
-  if (map) return;
-
-  map = L.map('mapaCeara').setView([-4.8, -39.5], 7);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
-
-  markersLayer = L.layerGroup().addTo(map);
-  kmlLinesLayer = L.layerGroup().addTo(map);
-
-  ensureToggleUI();
-
-  // carrega KML logo no início (pra desenhar linhas)
-  loadKML('assets/doc.kml').catch(err => console.error('[KML] erro:', err));
-}
-
-/* =========================
-   Render linhas do KML (com intensidade)
-========================= */
-function clearMapLayers() {
-  if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
-  if (markersLayer) markersLayer.clearLayers();
-  if (kmlLinesLayer) kmlLinesLayer.clearLayers();
-}
-
-function intensityStyle(intensity) {
-  // 0..50 => 0..1
-  const rel = clamp01(intensity / MAX_INTENSITY);
-
-  // cor fixa (vermelho) variando opacidade + espessura
-  // (Leaflet polyline aceita "opacity" e "weight")
-  const weight = 2 + Math.round(rel * 6);     // 2..8
-  const opacity = 0.25 + rel * 0.70;          // 0.25..0.95
-
-  return { color: '#D32F2F', weight, opacity };
-}
-
-function renderKmlLines(intensityByPrefix) {
-  if (!alimentadorLines || !kmlLinesLayer) return;
-
-  for (const [prefix, features] of alimentadorLines.entries()) {
-    const total = intensityByPrefix.get(prefix) || 0;
-    if (total <= 0) continue;
-
-    const st = intensityStyle(total);
-
-    features.forEach(f => {
-      const layer = L.geoJSON(f, {
-        style: () => st
-      });
-
-      layer.eachLayer(l => {
-        l.bindPopup(
-          `<strong>Alimentador: ${prefix}</strong><br>` +
-          `Reiteradas (total): <b>${total}</b>`
-        );
-      });
-
-      layer.addTo(kmlLinesLayer);
-    });
-  }
-}
-
-/* =========================
-   Render heat + markers + linhas
-========================= */
-async function renderAllLayers(data) {
-  if (!map) initMap();
-  if (!map) return;
-
-  lastData = Array.isArray(data) ? data : [];
-
-  clearMapLayers();
-
-  if (!lastData.length) return;
-
-  if (currentMode === 'ALIMENTADOR') {
-    // garante KML carregado
-    if (!alimentadorCoords || !alimentadorLines) {
-      await loadKML('assets/doc.kml').catch(() => null);
+  for (const [conjuntoNorm, bucket] of byConjunto.entries()) {
+    let reiteradasTotal = 0;
+    for (const count of bucket.elementCounts.values()) {
+      if (count >= 2) reiteradasTotal += count;
     }
-    if (!alimentadorCoords || !alimentadorLines) return;
+    if (reiteradasTotal <= 0) continue;
 
-    // 1) heatmap points
-    const points = generateHeatmapByAlimentador(lastData, alimentadorCoords);
-    if (!points.length) return;
+    const coord = coords[conjuntoNorm];
+    if (!coord) {
+      missing.push(bucket.display);
+      continue;
+    }
 
-    // 2) desenha heat
-    const heatPoints = points.map(p => [p.lat, p.lng, clamp01(p.intensity / MAX_INTENSITY)]);
-    heatLayer = L.heatLayer(heatPoints, {
-      radius: 45,
-      blur: 30,
-      minOpacity: 0.35,
-      maxZoom: 11,
-      gradient: {
-        0.10: '#6EC6FF',
-        0.30: '#2196F3',
-        0.55: '#FFC107',
-        0.75: '#FF9800',
-        1.00: '#B71C1C'
-      }
-    }).addTo(map);
-
-    // 3) markers
-    points.forEach(p => {
-      const rel = clamp01(p.intensity / MAX_INTENSITY);
-      const r = 6 + Math.round(rel * 12);
-      const op = 0.55 + rel * 0.40;
-
-      L.circleMarker([p.lat, p.lng], {
-        radius: r,
-        color: '#ffffff',
-        fillColor: '#003876',
-        fillOpacity: op,
-        weight: 2
-      })
-        .bindPopup(
-          `<strong>Alimentador: ${p.label}</strong><br>` +
-          `Reiteradas (total): <b>${p.intensity}</b>`
-        )
-        .addTo(markersLayer);
+    heatmap.push({
+      lat: coord[0],
+      lng: coord[1],
+      intensity: reiteradasTotal,
+      label: displayByKey[conjuntoNorm]
     });
-
-    // 4) linhas do KML com intensidade por alimentador
-    const intensityByPrefix = new Map();
-    points.forEach(p => intensityByPrefix.set(p.label, p.intensity));
-    // ⚠️ p.label aqui é o "display" (prefix). garantimos isso no KML loader
-    renderKmlLines(intensityByPrefix);
-
-    map.fitBounds(points.map(p => [p.lat, p.lng]), { padding: [40, 40] });
-    if (map.getZoom() > 10) map.setZoom(10);
-  } else {
-    // CONJUNTO
-    const points = generateHeatmapByConjunto(lastData);
-    if (!points.length) return;
-
-    const heatPoints = points.map(p => [p.lat, p.lng, clamp01(p.intensity / MAX_INTENSITY)]);
-    heatLayer = L.heatLayer(heatPoints, {
-      radius: 45,
-      blur: 30,
-      minOpacity: 0.35,
-      maxZoom: 11,
-      gradient: {
-        0.10: '#6EC6FF',
-        0.30: '#2196F3',
-        0.55: '#FFC107',
-        0.75: '#FF9800',
-        1.00: '#B71C1C'
-      }
-    }).addTo(map);
-
-    points.forEach(p => {
-      const rel = clamp01(p.intensity / MAX_INTENSITY);
-      const r = 6 + Math.round(rel * 12);
-      const op = 0.55 + rel * 0.40;
-
-      L.circleMarker([p.lat, p.lng], {
-        radius: r,
-        color: '#ffffff',
-        fillColor: '#003876',
-        fillOpacity: op,
-        weight: 2
-      })
-        .bindPopup(
-          `<strong>Conjunto: ${p.label}</strong><br>` +
-          `Reiteradas (total): <b>${p.intensity}</b>`
-        )
-        .addTo(markersLayer);
-    });
-
-    map.fitBounds(points.map(p => [p.lat, p.lng]), { padding: [40, 40] });
-    if (map.getZoom() > 10) map.setZoom(10);
   }
+
+  console.log('[HEATMAP-CONJ] conjuntos lidos:', byConjunto.size, 'pontos:', heatmap.length);
+  if (missing.length) console.warn('[HEATMAP-CONJ] sem coords (top 30):', missing.slice(0, 30));
+
+  return heatmap;
 }
 
-export function updateHeatmap(data) {
-  renderAllLayers(data);
+/* =========================
+   UTILIDADES EXISTENTES
+========================= */
+export function getAllColumns(data) {
+  const cols = new Set();
+  data.forEach(i => Object.keys(i).forEach(k => cols.add(k)));
+  return Array.from(cols);
+}
+
+export function getOcorrenciasByElemento(data, elemento) {
+  return data.filter(i => i.ELEMENTO === elemento);
 }
