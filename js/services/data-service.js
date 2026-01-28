@@ -6,7 +6,7 @@
    HELPERS GERAIS
 ========================= */
 
-export function normKey(v) {
+function normKey(v) {
   return String(v ?? '')
     .trim()
     .toUpperCase()
@@ -18,16 +18,14 @@ export function normKey(v) {
     .trim();
 }
 
-// Base: "ARR01", "IPU01", etc.
-// Se vier "ARR01L1" ou "ARR 01 L1", pega "ARR01".
-export function extractAlimBase(name) {
+function extractAlimBase(name) {
   const n = normKey(name);
   const m = n.match(/([A-Z]{3}\s?\d{2})/);
   if (!m) return n;
   return m[1].replace(/\s+/g, '');
 }
 
-export function getAlimentadorRaw(item) {
+function getAlimentadorRaw(item) {
   return (
     item.ALIMENT ||
     item.ALIMENTADOR ||
@@ -35,7 +33,6 @@ export function getAlimentadorRaw(item) {
     item.ALIM ||
     item['ALIMENT.'] ||
     item['ALIMEN.'] ||
-    item['ALIM.'] ||
     ''
   );
 }
@@ -65,19 +62,14 @@ export function generateRankingElemento(data) {
 }
 
 /* =========================
-   ALIMENTADOR (INTENSIDADE)
-   - agrega por alimentador base (ARR01, IPU01...)
-   - "reiteradasTotal": soma apenas elementos repetidos (>=2) dentro do alimentador
+   HEATMAP POR ALIMENTADOR (KML)
 ========================= */
-export function generateAlimentadorIntensityMap(data) {
-  // alimBase -> elemento -> count
-  const byAlim = new Map();
+export function generateHeatmapByAlimentador(data, alimentadorCoords = {}) {
+  const byAlim = new Map(); // alim -> elemento -> count
 
   data.forEach(item => {
-    const alimRaw = getAlimentadorRaw(item);
-    const alim = extractAlimBase(alimRaw);
+    const alim = extractAlimBase(getAlimentadorRaw(item));
     const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
-
     if (!alim || !elemento) return;
 
     if (!byAlim.has(alim)) byAlim.set(alim, new Map());
@@ -85,17 +77,34 @@ export function generateAlimentadorIntensityMap(data) {
     mapElem.set(elemento, (mapElem.get(elemento) || 0) + 1);
   });
 
-  // resultado final: alimBase -> { total }
-  const out = {};
+  const heatmap = [];
+  const missing = [];
+
   for (const [alim, elementos] of byAlim.entries()) {
     let reiteradasTotal = 0;
     for (const count of elementos.values()) {
       if (count >= 2) reiteradasTotal += count;
     }
-    out[alim] = { total: reiteradasTotal };
+    if (reiteradasTotal <= 0) continue;
+
+    const coordInfo = alimentadorCoords[normKey(alim)];
+    if (!coordInfo) {
+      missing.push(alim);
+      continue;
+    }
+
+    heatmap.push({
+      lat: coordInfo.lat,
+      lng: coordInfo.lng,
+      intensity: reiteradasTotal,
+      label: coordInfo.display || alim
+    });
   }
 
-  return out;
+  console.log('[HEATMAP-ALIM] alimentadores lidos:', byAlim.size, 'pontos:', heatmap.length);
+  if (missing.length) console.warn('[HEATMAP-ALIM] sem coords (top 30):', missing.slice(0, 30));
+
+  return heatmap;
 }
 
 /* =========================
