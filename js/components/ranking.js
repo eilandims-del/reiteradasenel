@@ -5,6 +5,8 @@
 import { generateRankingElemento } from '../services/data-service.js';
 import { openModal, fillDetailsModal } from './modal.js';
 import { formatDate } from '../utils/helpers.js';
+import { ShareLinkService } from '../services/firebase-service.js';
+
 
 let currentRankingData = [];
 let allData = [];
@@ -295,7 +297,7 @@ function buildHubInline(ocorrencias, elementoNome, alimentadorStr, causasStr) {
   return ` 🔗 ${hub}`;
 }
 
-export function generateRankingText() {
+export async function generateRankingText() {
   console.log('[COPIAR] generateRankingText ✅', { currentElementoFilter, elementoSearchTerm });
 
   if (!currentRankingData.length) return '⚠️ Nenhum ranking disponível no momento.';
@@ -344,7 +346,11 @@ export function generateRankingText() {
     return '•';
   };
 
-  const renderSecao = (titulo, arr) => {
+  // período pra salvar junto no link curto
+  const di = document.getElementById('dataInicial')?.value?.split('T')[0] || '';
+  const df = document.getElementById('dataFinal')?.value?.split('T')[0] || '';
+
+  const renderSecao = async (titulo, arr) => {
     if (!arr.length) return;
 
     const icon = getTipoEmoji(titulo);
@@ -355,27 +361,40 @@ export function generateRankingText() {
     const sliced = arr.slice(0, MAX_ITENS_POR_SECAO);
     const restantes = arr.length - sliced.length;
 
-    sliced.forEach((item) => {
+    for (const item of sliced) {
       const total = Number(item.count) || 0;
 
-      // Alimentador (mais frequente nas ocorrências)
       const alimentador = getMostFrequentField(item.ocorrencias || [], 'ALIMENT.');
       const alimentadorStr = alimentador ? sanitizeOneLine(alimentador) : 'Não informado';
 
-      // Todas as causas (únicas, por frequência)
       const causasStr = getAllCausesLine(item.ocorrencias || []);
 
-      const elementoNome = sanitizeOneLine(item.elemento);
-      const hubInline = buildHubInline(item.ocorrencias || [], elementoNome, alimentadorStr, causasStr);
-      
-      linhas.push(`*${String(globalIndex).padStart(2, '0')})* ${elementoNome}  *(${total} vezes)*${hubInline}`);
+      // pega todas incidências do elemento (mantém repetidas, e sem "vazar link gigante")
+      const incidencias = (item.ocorrencias || [])
+        .map(o => getValueSmartRow(o, 'INCIDENCIA'))
+        .map(x => String(x || '').trim())
+        .filter(Boolean);
+
+      // cria link curto (um por item)
+      let shortUrl = '';
+      const payload = { elemento: item.elemento, incidencias, periodo: { di, df } };
+      const created = await ShareLinkService.create(payload);
+
+      if (created.success) {
+        shortUrl = `https://eilandims-del.github.io/reiteradasenel/share.html?id=${created.id}`;
+      } else {
+        // fallback (se der erro, não quebra o relatório)
+        shortUrl = '(link indisponível)';
+      }
+
+      linhas.push(`*${String(globalIndex).padStart(2, '0')})* ${sanitizeOneLine(item.elemento)}  *(${total} vezes)* 🔗 Incidências`);
       linhas.push(`   ├─ 🧭 Alimentador: ${alimentadorStr}`);
-      linhas.push(`   └─ 🧾 Causas: ${causasStr}`);
-         
+      linhas.push(`   ├─ 🧾 Causas: ${causasStr}`);
+      linhas.push(`   └─ 🔗 ${shortUrl}`);
       linhas.push('');
 
       globalIndex += 1;
-    });
+    }
 
     if (restantes > 0) {
       linhas.push(`…e mais *${restantes}* item(ns) em ${titulo} (refine no painel para ver tudo).`);
@@ -386,11 +405,10 @@ export function generateRankingText() {
   };
 
   if (currentElementoFilter === 'TODOS') {
-    renderSecao('TRAFO', trafos);
-    renderSecao('FUSÍVEL', fus);
-    renderSecao('RELIGADOR', rel);
+    await renderSecao('TRAFO', trafos);
+    await renderSecao('FUSÍVEL', fus);
+    await renderSecao('RELIGADOR', rel);
 
-    // OBS individuais quando alguma seção não tiver ocorrência
     const obs = [];
     if (!trafos.length) obs.push('🔌 Não reiterou nenhum *TRAFO*');
     if (!fus.length) obs.push('💡 Não reiterou nenhum *FUSÍVEL*');
@@ -402,19 +420,19 @@ export function generateRankingText() {
       linhas.push('');
     }
   } else if (currentElementoFilter === 'TRAFO') {
-    renderSecao('TRAFO', trafos);
+    await renderSecao('TRAFO', trafos);
     if (!trafos.length) {
       linhas.push('ℹ️ *Observação:* 🔌 Não reiterou nenhum *TRAFO*');
       linhas.push('');
     }
   } else if (currentElementoFilter === 'FUSIVEL') {
-    renderSecao('FUSÍVEL', fus);
+    await renderSecao('FUSÍVEL', fus);
     if (!fus.length) {
       linhas.push('ℹ️ *Observação:* 💡 Não reiterou nenhum *FUSÍVEL*');
       linhas.push('');
     }
   } else if (currentElementoFilter === 'RELIGADOR') {
-    renderSecao('RELIGADOR', rel);
+    await renderSecao('RELIGADOR', rel);
     if (!rel.length) {
       linhas.push('ℹ️ *Observação:* ⚡ Não reiterou nenhum *RELIGADOR*');
       linhas.push('');
@@ -427,6 +445,7 @@ export function generateRankingText() {
 
   return linhas.join('\n').trim();
 }
+
 
 function getFiltroLabel(filter) {
   const f = String(filter || '').toUpperCase();

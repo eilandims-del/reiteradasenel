@@ -838,3 +838,53 @@ export class DataService {
         }
     }
 }
+/* ============================
+   SHARE LINKS (ENCURTADOR)
+   Coleção: share_links
+   ============================ */
+
+   export class ShareLinkService {
+    static COLLECTION = 'share_links';
+  
+    /**
+     * Cria um link curto para um elemento + incidências
+     * payload: { elemento, incidencias: [..], periodo?: {di, df}, createdAtISO?: string }
+     */
+    static async create(payload) {
+      try {
+        const safe = {
+          elemento: String(payload?.elemento || '').trim(),
+          incidencias: Array.isArray(payload?.incidencias) ? payload.incidencias.map(x => String(x || '').trim()).filter(Boolean) : [],
+          periodo: payload?.periodo || null,
+          createdAtISO: new Date().toISOString(),
+        };
+  
+        // Se não tiver incidências, não cria
+        if (!safe.incidencias.length) {
+          return { success: false, error: 'Sem incidências para criar link curto.' };
+        }
+  
+        // Se quiser exigir login, pode validar auth.currentUser aqui.
+        const ref = await db.collection(this.COLLECTION).add(safe);
+        return { success: true, id: ref.id };
+      } catch (error) {
+        console.error('[SHARE] Erro ao criar link:', error);
+        return { success: false, error: error.message };
+      }
+    }
+  
+    /**
+     * Lê um link curto por id
+     */
+    static async get(id) {
+      try {
+        const snap = await db.collection(this.COLLECTION).doc(String(id)).get();
+        if (!snap.exists) return { success: false, error: 'Link não encontrado.' };
+        return { success: true, data: snap.data() };
+      } catch (error) {
+        console.error('[SHARE] Erro ao ler link:', error);
+        return { success: false, error: error.message };
+      }
+    }
+  }
+  

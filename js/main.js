@@ -57,10 +57,11 @@ function initEventListeners() {
 
   // Copiar ranking (ELEMENTO)
   document.getElementById('copiarRankingElemento')?.addEventListener('click', async () => {
-    const text = generateRankingText();
+    const text = await generateRankingText(); // <-- agora é async
     const result = await copyToClipboard(text);
     showToast(result.success ? 'Ranking copiado!' : 'Erro ao copiar.', result.success ? 'success' : 'error');
   });
+  
 
   // Botões filtro ELEMENTO
   const btnTodos = document.getElementById('btnFiltroTodos');
