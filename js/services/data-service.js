@@ -63,72 +63,97 @@ export function generateRankingElemento(data) {
 
 /* =========================
    HEATMAP POR ALIMENTADOR (KML)
+   REGRA: reiterada = ELEMENTO com contagem GLOBAL >= 2
 ========================= */
 export function generateHeatmapByAlimentador(data, alimentadorCoords = {}) {
-  const byAlim = new Map(); // alim -> elemento -> count
-
-  data.forEach(item => {
-    const alim = extractAlimBase(getAlimentadorRaw(item));
+  // 1) Contagem global por ELEMENTO
+  const globalElemCount = new Map();
+  for (const item of data) {
     const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
-    if (!alim || !elemento) return;
+    if (!elemento) continue;
+    globalElemCount.set(elemento, (globalElemCount.get(elemento) || 0) + 1);
+  }
 
-    if (!byAlim.has(alim)) byAlim.set(alim, new Map());
-    const mapElem = byAlim.get(alim);
-    mapElem.set(elemento, (mapElem.get(elemento) || 0) + 1);
-  });
+  // 2) Soma por alimentador apenas elementos reiterados
+  const byAlim = new Map(); // alimBaseNorm -> total
+
+  for (const item of data) {
+    const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
+    if (!elemento) continue;
+
+    if ((globalElemCount.get(elemento) || 0) < 2) continue;
+
+    const alim = extractAlimBase(getAlimentadorRaw(item));
+    if (!alim) continue;
+
+    const key = normKey(alim);
+    byAlim.set(key, (byAlim.get(key) || 0) + 1);
+  }
 
   const heatmap = [];
   const missing = [];
 
-  for (const [alim, elementos] of byAlim.entries()) {
-    let reiteradasTotal = 0;
-    for (const count of elementos.values()) {
-      if (count >= 2) reiteradasTotal += count;
-    }
-    if (reiteradasTotal <= 0) continue;
+  for (const [alimKey, total] of byAlim.entries()) {
+    if (total <= 0) continue;
 
-    const coordInfo = alimentadorCoords[normKey(alim)];
+    const coordInfo = alimentadorCoords[alimKey];
     if (!coordInfo) {
-      missing.push(alim);
+      missing.push(alimKey);
       continue;
     }
 
     heatmap.push({
       lat: coordInfo.lat,
       lng: coordInfo.lng,
-      intensity: reiteradasTotal,
-      label: coordInfo.display || alim
+      intensity: total,
+      label: coordInfo.display || alimKey,
+      base: alimKey
     });
   }
 
   console.log('[HEATMAP-ALIM] alimentadores lidos:', byAlim.size, 'pontos:', heatmap.length);
-  if (missing.length) console.warn('[HEATMAP-ALIM] sem coords (top 30):', missing.slice(0, 30));
+  if (missing.length) {
+    console.warn('[HEATMAP-ALIM] sem coords (top 30):', missing.slice(0, 30));
+  }
 
   return heatmap;
 }
 
 /* =========================
    HEATMAP POR CONJUNTO (CIDADES)
+   REGRA: reiterada = ELEMENTO com contagem GLOBAL >= 2
 ========================= */
 export function generateHeatmapByConjunto(data) {
-  const byConjunto = new Map(); // conjunto -> elemento -> count
-
-  data.forEach(item => {
-    const conjuntoRaw = item.CONJUNTO;
-    const conjunto = normKey(conjuntoRaw);
+  // 1) Contagem global por ELEMENTO
+  const globalElemCount = new Map();
+  for (const item of data) {
     const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
-    if (!conjunto || !elemento) return;
+    if (!elemento) continue;
+    globalElemCount.set(elemento, (globalElemCount.get(elemento) || 0) + 1);
+  }
 
-    if (!byConjunto.has(conjunto)) {
-      byConjunto.set(conjunto, {
+  // 2) Soma por conjunto apenas elementos reiterados
+  const byConjunto = new Map(); // conjuntoNorm -> { display, total }
+
+  for (const item of data) {
+    const elemento = normKey(item.ELEMENTO || item.ELEMENTOS);
+    if (!elemento) continue;
+
+    if ((globalElemCount.get(elemento) || 0) < 2) continue;
+
+    const conjuntoRaw = item.CONJUNTO;
+    const conjuntoNorm = normKey(conjuntoRaw);
+    if (!conjuntoNorm) continue;
+
+    if (!byConjunto.has(conjuntoNorm)) {
+      byConjunto.set(conjuntoNorm, {
         display: String(conjuntoRaw ?? '').trim(),
-        elementCounts: new Map()
+        total: 0
       });
     }
 
-    const bucket = byConjunto.get(conjunto);
-    bucket.elementCounts.set(elemento, (bucket.elementCounts.get(elemento) || 0) + 1);
-  });
+    byConjunto.get(conjuntoNorm).total += 1;
+  }
 
   const coordenadasConjuntos = {
     'NOVA RUSSAS': [-4.7058, -40.5659],
@@ -160,11 +185,7 @@ export function generateHeatmapByConjunto(data) {
   const missing = [];
 
   for (const [conjuntoNorm, bucket] of byConjunto.entries()) {
-    let reiteradasTotal = 0;
-    for (const count of bucket.elementCounts.values()) {
-      if (count >= 2) reiteradasTotal += count;
-    }
-    if (reiteradasTotal <= 0) continue;
+    if (bucket.total <= 0) continue;
 
     const coord = coords[conjuntoNorm];
     if (!coord) {
@@ -175,13 +196,15 @@ export function generateHeatmapByConjunto(data) {
     heatmap.push({
       lat: coord[0],
       lng: coord[1],
-      intensity: reiteradasTotal,
-      label: displayByKey[conjuntoNorm]
+      intensity: bucket.total,
+      label: displayByKey[conjuntoNorm] || bucket.display
     });
   }
 
   console.log('[HEATMAP-CONJ] conjuntos lidos:', byConjunto.size, 'pontos:', heatmap.length);
-  if (missing.length) console.warn('[HEATMAP-CONJ] sem coords (top 30):', missing.slice(0, 30));
+  if (missing.length) {
+    console.warn('[HEATMAP-CONJ] sem coords (top 30):', missing.slice(0, 30));
+  }
 
   return heatmap;
 }
