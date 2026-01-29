@@ -20,4 +20,15 @@ firebase.initializeApp(firebaseConfig);
 // Exportar serviços
 export const auth = firebase.auth();
 export const db = firebase.firestore();
+try {
+  db.settings({
+    experimentalAutoDetectLongPolling: true,
+    experimentalForceLongPolling: true,
+    ignoreUndefinedProperties: true
+  });
+  console.log('[FIREBASE] Firestore long-polling ON');
+} catch (e) {
+  console.warn('[FIREBASE] settings() falhou:', e);
+}
+
 
