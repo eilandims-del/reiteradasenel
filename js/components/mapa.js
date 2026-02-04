@@ -39,6 +39,15 @@ let regionGeoJSONCache = {}; // key -> geojson | null
 /* =========================
    HELPERS
 ========================= */
+function decimateLatLngs(latlngs, step = 3) {
+  if (!Array.isArray(latlngs) || latlngs.length < 3) return latlngs;
+  const out = [];
+  for (let i = 0; i < latlngs.length; i += step) out.push(latlngs[i]);
+  const last = latlngs[latlngs.length - 1];
+  if (out[out.length - 1] !== last) out.push(last);
+  return out;
+}
+
 function normKey(v) {
   return String(v ?? '')
     .trim()
@@ -663,43 +672,76 @@ if (mode === 'CONJUNTO') {
   }
 }
 
-  // ✅ Linhas KML SOMENTE no modo ALIMENTADOR
-  if (mode === 'ALIMENTADOR') {
-    const intensityByBase = new Map();
-    for (const p of points) {
-      const baseKey = normKey(p.base || p.label);
-      intensityByBase.set(baseKey, Number(p.intensity) || 0);
-    }
-
-    let drawn = 0;
-    for (const [baseKey, lines] of Object.entries(alimentadorLines)) {
-      const intensity = intensityByBase.get(baseKey) || 0;
-      if (intensity <= 0) continue;
-
-      const style = lineStyleByIntensity(intensity, 50);
-
-      for (const latlngs of lines) {
-        if (regionGeo && geojsonHasPolygon(regionGeo)) {
-          const anyInside = latlngs.some(([lat, lng]) => pointInGeoJSON(lat, lng, regionGeo));
-          if (!anyInside) continue;
-        }
-
-        L.polyline(latlngs, style)
-          .bindPopup(
-            `<strong>${alimentadorCenters[baseKey]?.display || baseKey}</strong><br>
-             Intensidade: <b>${intensity}</b>`
-          )
-          .addTo(linesLayer);
-        drawn++;
-      }
-    }
-
-    console.log('[MAP] linhas desenhadas:', drawn);
+// ✅ Apenas ALIMENTADOR tem linhas / ranking por base
+// ✅ Linhas SOMENTE no modo ALIMENTADOR
+if (mode === 'ALIMENTADOR') {
+  // ✅ mapa de intensidade por alimentador-base (para colorir linhas)
+  const intensityByBase = new Map();
+  for (const p of points) {
+    const baseKey = normKey(p.base || p.label);
+    intensityByBase.set(baseKey, Number(p.intensity) || 0);
   }
 
-  if (seq !== renderSeq) return;
+  const TOP_N = 40; // 30 (leve) | 60 (ok) | 100 (pesado)
 
+  // Ordena alimentadores por intensidade (desc)
+  const rankedBases = Array.from(intensityByBase.entries())
+    .filter(([, v]) => (Number(v) || 0) > 0)
+    .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
+    .slice(0, TOP_N)
+    .map(([k]) => k);
+
+  // Monta fila de desenho (render progressivo)
+  const queue = [];
+  for (const baseKey of rankedBases) {
+    const lines = alimentadorLines[baseKey];
+    if (!lines) continue;
+
+    const intensity = intensityByBase.get(baseKey) || 0;
+    if (intensity <= 0) continue;
+
+    const style = lineStyleByIntensity(intensity, maxCap);
+
+    for (const latlngs of lines) {
+      queue.push({ latlngs, style });
+    }
+  }
+
+  let i = 0;
+  const BATCH = 60; // 60/120/200
+
+  function drawBatch() {
+    // ✅ se o usuário mudou modo/filtro enquanto desenhava, interrompe
+    if (seq !== renderSeq) return;
+
+    const end = Math.min(i + BATCH, queue.length);
+    for (; i < end; i++) {
+      const { latlngs, style } = queue[i];
+
+      if (regionGeo && geojsonHasPolygon(regionGeo)) {
+        let anyInside = false;
+        for (let k = 0; k < latlngs.length; k += 10) { // ✅ testa 1 a cada 10
+          const [lat, lng] = latlngs[k];
+          if (pointInGeoJSON(lat, lng, regionGeo)) { anyInside = true; break; }
+        }
+        if (!anyInside) continue;
+        }
+
+        const simplified = decimateLatLngs(latlngs, 6); // ✅ mais leve
+        L.polyline(simplified, style).addTo(linesLayer);
+    }
+
+    if (i < queue.length) requestAnimationFrame(drawBatch);
+  }
+
+  requestAnimationFrame(drawBatch);
+}
+
+
+// ✅ desenha só os alimentadores mais “quentes” para não travar
   // zoom: se tem borda, prioriza bounds da regional
+// ✅ evita travar no ALIMENTADOR com zoom automático
+if (mode === 'CONJUNTO') {
   const boundsPts = L.latLngBounds(points.map(p => [p.lat, p.lng]));
   if (regionLayer) {
     try {
@@ -711,4 +753,5 @@ if (mode === 'CONJUNTO') {
   } else {
     map.fitBounds(boundsPts, { padding: [40, 40] });
   }
+}
 }
