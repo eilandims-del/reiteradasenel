@@ -136,9 +136,9 @@ function lineStyleByIntensity(intensity, max) {
   const t = max > 0 ? clamp(Number(intensity) || 0, 0, max) / max : 0;
 
   return {
-    color: colorFromIntensity(intensity, max, 0.85),
-    weight: 0.9 + 2.2 * t,   // mais fino
-    opacity: 0.45            // menos escuro na sobreposição    
+    color: colorFromIntensity(intensity, max, 0.95),
+    weight: 1.2 + 3.6 * t,
+    opacity: 0.90
   };
 }
 
@@ -388,7 +388,12 @@ function drawRegionBoundary(geojson, label) {
 
   if (!geojson) return;
 
+  // ✅ IMPORTANTE: desenha SOMENTE Polygon/MultiPolygon (evita “linhas pretas” do KMZ/KML)
   regionLayer = L.geoJSON(geojson, {
+    filter: (feature) => {
+      const t = feature?.geometry?.type;
+      return t === 'Polygon' || t === 'MultiPolygon';
+    },
     style: {
       color: '#0f172a',
       weight: 2,
@@ -400,6 +405,7 @@ function drawRegionBoundary(geojson, label) {
 
   regionLayer.bindPopup(`<strong>Regional:</strong> ${label}`);
 }
+
 
 /* =========================
    UI
@@ -619,7 +625,7 @@ export async function updateHeatmap(data) {
     }
   }
 
-  const maxCap = 50;
+  const maxCap = 50; // legenda fixa 0 → 50+
   const maxObserved = points.reduce((m, p) => Math.max(m, Number(p.intensity) || 0), 0);
   const maxHeat = clamp(Math.round(maxObserved * 0.35), 12, maxCap);
 
@@ -642,9 +648,11 @@ export async function updateHeatmap(data) {
   }
 
   // markers (pontos) — fica nos dois modos
+// ✅ Marcadores só no modo CONJUNTO (remove “pins” do ALIMENTADOR)
+if (mode === 'CONJUNTO') {
   for (const p of points) {
     L.circleMarker([p.lat, p.lng], {
-      radius: mode === 'ALIMENTADOR' ? 5 : 6,
+      radius: 6,
       color: 'rgba(255,255,255,0.85)',
       fillColor: '#0A4A8C',
       fillOpacity: 0.35,
@@ -653,6 +661,7 @@ export async function updateHeatmap(data) {
       .bindPopup(`<strong>${p.label}</strong><br>Reiteradas (total): <b>${p.intensity}</b>`)
       .addTo(markersLayer);
   }
+}
 
   // ✅ Linhas KML SOMENTE no modo ALIMENTADOR
   if (mode === 'ALIMENTADOR') {
@@ -667,7 +676,7 @@ export async function updateHeatmap(data) {
       const intensity = intensityByBase.get(baseKey) || 0;
       if (intensity <= 0) continue;
 
-      const style = lineStyleByIntensity(intensity, maxCap);
+      const style = lineStyleByIntensity(intensity, 50);
 
       for (const latlngs of lines) {
         if (regionGeo && geojsonHasPolygon(regionGeo)) {
