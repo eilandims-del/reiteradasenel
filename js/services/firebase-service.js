@@ -1,21 +1,28 @@
 /**
- * Serviços Firebase - Autenticação e Firestore
+ * Serviços Firebase - MODULAR (Auth + Firestore)
  */
 
-import { auth, db } from '../firebase-config.js';
+import { auth, db } from "../firebase-config.js";
 
-/* =========================
-   Helpers Firebase compat
-========================= */
-function getFieldValueServerTimestamp() {
-  const fv = window?.firebase?.firestore?.FieldValue;
-  if (!fv?.serverTimestamp) {
-    throw new Error(
-      'Firebase compat FieldValue não encontrado. Verifique se firebase-firestore-compat.js está carregado antes dos seus scripts.'
-    );
-  }
-  return fv.serverTimestamp();
-}
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  setDoc,
+  deleteDoc,
+  writeBatch,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 /* =========================
    Serviço de Autenticação
@@ -23,19 +30,19 @@ function getFieldValueServerTimestamp() {
 export class AuthService {
   static async login(email, senha) {
     try {
-      const userCredential = await auth.signInWithEmailAndPassword(email, senha);
+      const userCredential = await signInWithEmailAndPassword(auth, email, senha);
       return { success: true, user: userCredential.user };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || String(error) };
     }
   }
 
   static async logout() {
     try {
-      await auth.signOut();
+      await signOut(auth);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || String(error) };
     }
   }
 
@@ -44,7 +51,7 @@ export class AuthService {
   }
 
   static onAuthStateChanged(callback) {
-    return auth.onAuthStateChanged(callback);
+    return onAuthStateChanged(auth, callback);
   }
 }
 
@@ -52,35 +59,30 @@ export class AuthService {
    Serviço de Dados - Firestore
 ========================= */
 export class DataService {
-  static COLLECTION_NAME = 'reinteradas';
-  static UPLOADS_COLLECTION = 'uploads';
+  static COLLECTION_NAME = "reinteradas";
+  static UPLOADS_COLLECTION = "uploads";
 
-  /* =========================
-     Regionais suportadas
-  ========================= */
   static REGIONAIS = {
-    ATLANTICO: 'ATLANTICO',
-    NORTE: 'NORTE',
-    CENTRO_NORTE: 'CENTRO NORTE'
+    ATLANTICO: "ATLANTICO",
+    NORTE: "NORTE",
+    CENTRO_NORTE: "CENTRO NORTE"
   };
 
   static normalizeRegional(regional) {
-    const r = String(regional || '').trim().toUpperCase();
-    if (r === 'CENTRO NORTE' || r === 'CENTRO_NORTE' || r === 'CENTRONORTE') return 'CENTRO NORTE';
-    if (r === 'ATLÂNTICO' || r === 'ATLANTICO') return 'ATLANTICO';
-    if (r === 'NORTE') return 'NORTE';
-    return '';
+    const r = String(regional || "").trim().toUpperCase();
+    if (r === "CENTRO NORTE" || r === "CENTRO_NORTE" || r === "CENTRONORTE") return "CENTRO NORTE";
+    if (r === "ATLÂNTICO" || r === "ATLANTICO") return "ATLANTICO";
+    if (r === "NORTE") return "NORTE";
+    return "";
   }
 
-  /* =========================
-     Helper
-  ========================= */
   static sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   static generateUploadId() {
-    return db.collection(this.UPLOADS_COLLECTION).doc().id;
+    // id local (sem gravar nada)
+    return doc(collection(db, this.UPLOADS_COLLECTION)).id;
   }
 
   /* =========================
@@ -88,13 +90,12 @@ export class DataService {
   ========================= */
   static async saveData(data, metadata = {}, progressCallback = null) {
     try {
-      const timestamp = getFieldValueServerTimestamp();
       const uploadId = metadata.uploadId;
       const regional = this.normalizeRegional(metadata.regional || metadata.REGIONAL);
 
-      if (!uploadId) throw new Error('uploadId é obrigatório');
-      if (!regional) throw new Error('REGIONAL é obrigatória');
-      if (!Array.isArray(data)) throw new Error('data precisa ser um array');
+      if (!uploadId) throw new Error("uploadId é obrigatório");
+      if (!regional) throw new Error("REGIONAL é obrigatória");
+      if (!Array.isArray(data)) throw new Error("data precisa ser um array");
 
       const BATCH_SIZE = 200;
       const THROTTLE_MS = 900;
@@ -115,12 +116,13 @@ export class DataService {
 
         while (!batchSuccess && retryCount < MAX_RETRIES) {
           try {
-            const batch = db.batch();
+            const batch = writeBatch(db);
 
             batchData.forEach((item, index) => {
               const rowIndex = startIndex + index;
               const docId = `${uploadId}_${rowIndex}`;
-              const ref = db.collection(this.COLLECTION_NAME).doc(docId);
+
+              const ref = doc(db, this.COLLECTION_NAME, docId);
 
               batch.set(
                 ref,
@@ -130,7 +132,7 @@ export class DataService {
                   regional,
                   uploadId,
                   rowIndex,
-                  createdAt: timestamp
+                  createdAt: serverTimestamp()
                 },
                 { merge: true }
               );
@@ -180,99 +182,85 @@ export class DataService {
         }
       }
 
-      // grava histórico de upload
-      await db.collection(this.UPLOADS_COLLECTION).doc(uploadId).set(
+      // grava histórico do upload
+      await setDoc(
+        doc(db, this.UPLOADS_COLLECTION, uploadId),
         {
           ...metadata,
           REGIONAL: regional,
           regional,
           totalRecords: data.length,
-          uploadedAt: timestamp,
-          uploadedBy: auth.currentUser?.email || 'unknown'
+          uploadedAt: serverTimestamp(),
+          uploadedBy: auth.currentUser?.email || "unknown"
         },
         { merge: true }
       );
 
       return { success: true, count: totalSaved };
     } catch (error) {
-      console.error('[UPLOAD]', error);
-      return { success: false, error: error.message };
+      console.error("[UPLOAD]", error);
+      return { success: false, error: error?.message || String(error) };
     }
   }
 
   /* =========================
      GET DATA (REGIONAL + DATA)
-     - DATA deve estar no formato "YYYY-MM-DD"
+     DATA: "YYYY-MM-DD"
   ========================= */
   static async getData(filters = {}) {
     try {
       const regional = this.normalizeRegional(filters.regional);
-      const di = String(filters.dataInicial || '').trim();
-      const df = String(filters.dataFinal || '').trim();
+      const di = String(filters.dataInicial || "").trim();
+      const df = String(filters.dataFinal || "").trim();
 
       if (!regional) return { success: true, data: [] };
 
-      let q = db.collection(this.COLLECTION_NAME).where('REGIONAL', '==', regional);
+      const colRef = collection(db, this.COLLECTION_NAME);
 
-      // range por string ISO (YYYY-MM-DD) funciona
-      if (di) q = q.where('DATA', '>=', di);
-      if (df) q = q.where('DATA', '<=', df);
+      const clauses = [where("REGIONAL", "==", regional)];
+      if (di) clauses.push(where("DATA", ">=", di));
+      if (df) clauses.push(where("DATA", "<=", df));
 
       // Firestore exige orderBy no campo do range
-      q = q.orderBy('DATA', 'desc').limit(5000);
+      const q = query(colRef, ...clauses, orderBy("DATA", "desc"), limit(5000));
 
-      const snapshot = await q.get();
-      const data = [];
-      snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
+      const snap = await getDocs(q);
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
       return { success: true, data };
     } catch (error) {
-      console.error('[GET DATA]', error);
-      return { success: false, error: error.message, data: [] };
+      console.error("[GET DATA]", error);
+      return { success: false, error: error?.message || String(error), data: [] };
     }
   }
 
   /* =========================
      GET UPLOAD HISTORY (REGIONAL)
-     com fallback (sem índice)
+     fallback se faltar índice
   ========================= */
   static async getUploadHistory(regional = null) {
     try {
       const reg = this.normalizeRegional(regional);
+      const colRef = collection(db, this.UPLOADS_COLLECTION);
 
       if (!reg) {
-        const snap = await db
-          .collection(this.UPLOADS_COLLECTION)
-          .orderBy('uploadedAt', 'desc')
-          .limit(5000)
-          .get();
-
-        const history = [];
-        snap.forEach(d => history.push({ id: d.id, ...d.data() }));
+        const q = query(colRef, orderBy("uploadedAt", "desc"), limit(5000));
+        const snap = await getDocs(q);
+        const history = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         return { success: true, history };
       }
 
+      // tenta com orderBy
       try {
-        const snap = await db
-          .collection(this.UPLOADS_COLLECTION)
-          .where('REGIONAL', '==', reg)
-          .orderBy('uploadedAt', 'desc')
-          .limit(5000)
-          .get();
-
-        const history = [];
-        snap.forEach(d => history.push({ id: d.id, ...d.data() }));
+        const q = query(colRef, where("REGIONAL", "==", reg), orderBy("uploadedAt", "desc"), limit(5000));
+        const snap = await getDocs(q);
+        const history = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         return { success: true, history };
       } catch {
-        // fallback sem orderBy (quando não há índice composto)
-        const snap = await db
-          .collection(this.UPLOADS_COLLECTION)
-          .where('REGIONAL', '==', reg)
-          .limit(5000)
-          .get();
-
-        const history = [];
-        snap.forEach(d => history.push({ id: d.id, ...d.data() }));
+        // fallback sem orderBy
+        const q2 = query(colRef, where("REGIONAL", "==", reg), limit(5000));
+        const snap2 = await getDocs(q2);
+        const history = snap2.docs.map((d) => ({ id: d.id, ...d.data() }));
 
         history.sort((a, b) => {
           const ta = a.uploadedAt?.toMillis?.() || 0;
@@ -283,83 +271,80 @@ export class DataService {
         return { success: true, history };
       }
     } catch (error) {
-      console.error('[UPLOAD HISTORY]', error);
-      return { success: false, error: error.message, history: [] };
+      console.error("[UPLOAD HISTORY]", error);
+      return { success: false, error: error?.message || String(error), history: [] };
     }
   }
 
   /* =========================
      DELETE UPLOAD
-     - remove doc uploads/{uploadId}
-     - remove registros reinteradas onde uploadId == {uploadId}
 ========================= */
   static async deleteUpload(uploadId) {
     try {
-      const id = String(uploadId || '').trim();
-      if (!id) throw new Error('uploadId inválido');
+      const id = String(uploadId || "").trim();
+      if (!id) throw new Error("uploadId inválido");
 
       let deletedCount = 0;
 
-      // 1) apagar registros por uploadId em lotes
+      // apaga reinteradas por uploadId em lotes
       while (true) {
-        const snap = await db
-          .collection(this.COLLECTION_NAME)
-          .where('uploadId', '==', id)
-          .limit(450)
-          .get();
+        const q = query(
+          collection(db, this.COLLECTION_NAME),
+          where("uploadId", "==", id),
+          limit(450)
+        );
 
+        const snap = await getDocs(q);
         if (snap.empty) break;
 
-        const batch = db.batch();
-        snap.forEach(doc => batch.delete(doc.ref));
+        const batch = writeBatch(db);
+        snap.docs.forEach((d) => batch.delete(d.ref));
         await batch.commit();
 
         deletedCount += snap.size;
-
-        // pequeno respiro (evita burst)
         await this.sleep(250);
       }
 
-      // 2) apagar histórico do upload
-      await db.collection(this.UPLOADS_COLLECTION).doc(id).delete();
+      // apaga doc de histórico
+      await deleteDoc(doc(db, this.UPLOADS_COLLECTION, id));
 
       return { success: true, deletedCount };
     } catch (error) {
-      console.error('[DELETE UPLOAD]', error);
-      return { success: false, error: error.message, deletedCount: 0 };
+      console.error("[DELETE UPLOAD]", error);
+      return { success: false, error: error?.message || String(error), deletedCount: 0 };
     }
   }
 
   /* =========================
      CLEAR ALL DATA
-     - apaga TUDO em uploads e reinteradas
-     (cuidado: operação pesada)
 ========================= */
   static async clearAllData() {
     try {
       let deletedData = 0;
       let deletedUploads = 0;
 
-      // apagar reinteradas
+      // reinteradas
       while (true) {
-        const snap = await db.collection(this.COLLECTION_NAME).limit(450).get();
+        const q = query(collection(db, this.COLLECTION_NAME), limit(450));
+        const snap = await getDocs(q);
         if (snap.empty) break;
 
-        const batch = db.batch();
-        snap.forEach(doc => batch.delete(doc.ref));
+        const batch = writeBatch(db);
+        snap.docs.forEach((d) => batch.delete(d.ref));
         await batch.commit();
 
         deletedData += snap.size;
         await this.sleep(300);
       }
 
-      // apagar uploads
+      // uploads
       while (true) {
-        const snap = await db.collection(this.UPLOADS_COLLECTION).limit(450).get();
+        const q = query(collection(db, this.UPLOADS_COLLECTION), limit(450));
+        const snap = await getDocs(q);
         if (snap.empty) break;
 
-        const batch = db.batch();
-        snap.forEach(doc => batch.delete(doc.ref));
+        const batch = writeBatch(db);
+        snap.docs.forEach((d) => batch.delete(d.ref));
         await batch.commit();
 
         deletedUploads += snap.size;
@@ -368,8 +353,8 @@ export class DataService {
 
       return { success: true, deletedData, deletedUploads };
     } catch (error) {
-      console.error('[CLEAR ALL]', error);
-      return { success: false, error: error.message };
+      console.error("[CLEAR ALL]", error);
+      return { success: false, error: error?.message || String(error) };
     }
   }
 }
