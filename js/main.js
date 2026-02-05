@@ -121,6 +121,13 @@ function setRegionalUI(regional) {
 
 /* =========================
    Alimentadores (Modal)
+   ✅ AJUSTADO para o seu index.html:
+   - modal: #modalAlimentadores
+   - search: #alimSearch
+   - list: #alimList
+   - hint: #alimHint
+   - buttons: #btnAlimAll / #btnAlimClear
+   - fechar: #modalAlimentadores .modal-close
 ========================= */
 
 function getCatalogForSelectedRegional() {
@@ -128,21 +135,33 @@ function getCatalogForSelectedRegional() {
   return ALIMENTADORES_POR_REGIONAL[regionalKey] || [];
 }
 
+function setBadgeText(el, text) {
+  // preserva ícone (se existir) e troca só o texto
+  const icon = el.querySelector('i');
+  if (icon) {
+    el.innerHTML = '';
+    el.appendChild(icon);
+    el.appendChild(document.createTextNode(' ' + text));
+  } else {
+    el.textContent = text;
+  }
+}
+
 function updateAlimentadoresBadge() {
   const el = document.getElementById('badgeOpenAlimentadores');
   if (!el) return;
 
   if (!selectedRegional) {
-    el.textContent = 'Alimentadores: —';
+    setBadgeText(el, 'Alimentadores: —');
     return;
   }
 
   if (!alimentadorFilterActive()) {
-    el.textContent = 'Alimentadores: TODOS';
+    setBadgeText(el, 'Alimentadores: TODOS');
     return;
   }
 
-  el.textContent = `Alimentadores: ${selectedAlimentadores.size}`;
+  setBadgeText(el, `Alimentadores: ${selectedAlimentadores.size}`);
 }
 
 function updateAlimentadoresHint(hintEl, catalog, countsMap) {
@@ -178,11 +197,15 @@ function openAlimentadoresModal() {
     return;
   }
 
-  const listEl = document.getElementById('alimListModal');
-  const hintEl = document.getElementById('alimHintModal');
-  const searchEl = document.getElementById('alimSearchModal');
+  // ✅ IDs do seu index (SEM "Modal" no fim)
+  const listEl = document.getElementById('alimList');
+  const hintEl = document.getElementById('alimHint');
+  const searchEl = document.getElementById('alimSearch');
 
-  if (!listEl || !hintEl) return;
+  if (!listEl || !hintEl) {
+    console.warn('[ALIM] IDs do modal não encontrados: esperava #alimList e #alimHint no index.html');
+    return;
+  }
   if (searchEl) searchEl.value = '';
 
   // contagem real só se já tiver dataset carregado
@@ -226,6 +249,7 @@ function openAlimentadoresModal() {
       else selectedAlimentadores.delete(key);
 
       updateAlimentadoresHint(hintEl, catalog, counts);
+      updateAlimentadoresBadge(); // ✅ já reflete no badge enquanto marca
     });
 
     row.classList.toggle('active', checked);
@@ -234,7 +258,7 @@ function openAlimentadoresModal() {
 
   updateAlimentadoresHint(hintEl, catalog, counts);
 
-  // busca (liga uma vez por abertura)
+  // busca
   if (searchEl) {
     searchEl.oninput = (e) => {
       const term = String(e.target.value || '').trim().toUpperCase();
@@ -244,6 +268,7 @@ function openAlimentadoresModal() {
       });
     };
   }
+
   openModal('modalAlimentadores');
 }
 
@@ -279,32 +304,48 @@ function initEventListeners() {
   document.getElementById('aplicarFiltro')?.addEventListener('click', applyFilters);
   document.getElementById('limparFiltro')?.addEventListener('click', clearFilters);
 
-  // Modal Alimentadores
-  document.getElementById('fecharModalAlim')?.addEventListener('click', () => closeModal('modalAlimentadores'));
-  document.getElementById('btnConfirmarAlimModal')?.addEventListener('click', () => {
-    closeModal('modalAlimentadores');
-    updateAlimentadoresBadge();
-    if (currentData.length) renderAll();
+  // ✅ Modal Alimentadores (ajustado pro seu index)
+  const modalAlimCloseBtn = document.querySelector('#modalAlimentadores .modal-close');
+  modalAlimCloseBtn?.addEventListener('click', () => closeModal('modalAlimentadores'));
+
+  // (Opcional) fechar ao clicar fora do conteúdo
+  document.getElementById('modalAlimentadores')?.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'modalAlimentadores') closeModal('modalAlimentadores');
   });
 
-  document.getElementById('btnAlimAllModal')?.addEventListener('click', () => {
-    selectedAlimentadores = new Set(); // TODOS
-    const listEl = document.getElementById('alimListModal');
+  // Botões do modal (IDs do seu index)
+  document.getElementById('btnAlimAll')?.addEventListener('click', () => {
+    // "Todos" = sem filtro
+    selectedAlimentadores = new Set();
+
+    const listEl = document.getElementById('alimList');
     listEl?.querySelectorAll('input[type="checkbox"]').forEach(i => {
       i.checked = false;
       i.closest('.alim-chip')?.classList.remove('active');
     });
+
     updateAlimentadoresBadge();
+
+    const hintEl = document.getElementById('alimHint');
+    const catalog = getCatalogForSelectedRegional();
+    if (hintEl && catalog.length) updateAlimentadoresHint(hintEl, catalog, null);
   });
 
-  document.getElementById('btnAlimClearModal')?.addEventListener('click', () => {
-    selectedAlimentadores = new Set(); // TODOS
-    const listEl = document.getElementById('alimListModal');
+  document.getElementById('btnAlimClear')?.addEventListener('click', () => {
+    // Limpar = também sem filtro (mesma regra de TODOS no seu fluxo)
+    selectedAlimentadores = new Set();
+
+    const listEl = document.getElementById('alimList');
     listEl?.querySelectorAll('input[type="checkbox"]').forEach(i => {
       i.checked = false;
       i.closest('.alim-chip')?.classList.remove('active');
     });
+
     updateAlimentadoresBadge();
+
+    const hintEl = document.getElementById('alimHint');
+    const catalog = getCatalogForSelectedRegional();
+    if (hintEl && catalog.length) updateAlimentadoresHint(hintEl, catalog, null);
   });
 
   // Regional -> abre modal alimentadores
@@ -448,8 +489,9 @@ const applyFiltersDebounced = debounce(async () => {
   const dataInicial = document.getElementById('dataInicial')?.value;
   const dataFinal = document.getElementById('dataFinal')?.value;
 
-  const di = dataInicial ? dataInicial.split('T')[0] : '';
-  const df = dataFinal ? dataFinal.split('T')[0] : '';
+  // input type="date" já vem YYYY-MM-DD (sem T)
+  const di = dataInicial ? String(dataInicial).split('T')[0] : '';
+  const df = dataFinal ? String(dataFinal).split('T')[0] : '';
 
   if (!selectedRegional) {
     showToast('Selecione uma Regional (ATLANTICO / NORTE / CENTRO NORTE) antes de aplicar.', 'error');
