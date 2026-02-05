@@ -86,14 +86,8 @@ async function init() {
   // ✅ Guard global: bloqueia fechar modalAlimentadores se inválido
   window.__beforeCloseModal = (modalId) => {
     if (modalId !== 'modalAlimentadores') return true;
-  
-    // se for inválido, bloqueia fechar e avisa
-    const ok = validateAlimentadoresSelection(true);
-    if (!ok) {
-      showToast('⚠️ Selecione "TODOS" ou 1+ alimentadores para fechar.', 'error');
-    }
-    return ok;
-  };
+    return validateAlimentadoresSelection(true); // true = não fecha e mostra warning
+  };  
 }
 
 /**
@@ -197,6 +191,16 @@ function updateAlimentadoresHint(hintEl, catalog, countsMap) {
     : `Selecionados: <b>${selected}</b> • Catálogo: <b>${total}</b>`;
 }
 
+let __alimCloseWarnTimer = 0;
+
+function warnObrigatorioOnce() {
+  // evita spam de toast se clicar várias vezes rápido
+  const now = Date.now();
+  if (now - __alimCloseWarnTimer < 900) return;
+  __alimCloseWarnTimer = now;
+  showToast('Escolha "TODOS" ou selecione 1+ alimentadores antes de fechar.', 'error');
+}
+
 function validateAlimentadoresSelection(silent = false) {
   // precisa ter regional escolhida
   if (!selectedRegional) {
@@ -204,32 +208,22 @@ function validateAlimentadoresSelection(silent = false) {
     return false;
   }
 
-  // obrigar escolha explícita
-  if (!alimTouched || alimSelectionMode === 'NONE') {
-    showObrigatorioMsg(true);
-    if (!silent) {
-      showToast('Selecione "TODOS" ou 1+ alimentadores para continuar.', 'error');
-      openAlimentadoresModal(); // força abrir se tentou aplicar pela data sem escolher
-    }
-    return false;
-  }
-
   // TODOS é válido
-  if (alimSelectionMode === 'TODOS') {
-    showObrigatorioMsg(false);
-    return true;
-  }
+  if (alimSelectionMode === 'TODOS') return true;
 
   // CUSTOM exige pelo menos 1 marcado
-  if (selectedAlimentadores.size > 0) {
-    showObrigatorioMsg(false);
-    return true;
+  if (selectedAlimentadores && selectedAlimentadores.size > 0) return true;
+
+  if (!silent) {
+    showToast('Selecione "TODOS" ou pelo menos 1 alimentador.', 'error');
+  } else {
+    // silent=true ocorre quando tenta fechar via X/fora/ESC
+    warnObrigatorioOnce();
   }
 
-  showObrigatorioMsg(true);
-  if (!silent) showToast('Selecione "TODOS" ou pelo menos 1 alimentador.', 'error');
   return false;
 }
+
 
 function openAlimentadoresModal() {
   if (!selectedRegional) {
