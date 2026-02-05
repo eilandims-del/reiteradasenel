@@ -18,13 +18,20 @@ export function openModal(modalId) {
 /**
  * Fechar modal
  */
+
 export function closeModal(modalId) {
+  // ✅ Hook opcional: permite bloquear o fechamento (X/ESC/backdrop)
+  if (window.__beforeCloseModal && window.__beforeCloseModal(modalId) === false) {
+    return;
+  }
+
   const modal = document.getElementById(modalId);
   if (modal) {
     modal.classList.remove('active');
     document.body.style.overflow = '';
   }
 }
+
 
 /**
  * Inicializar eventos de fechamento de modal
@@ -33,12 +40,14 @@ export function initModalEvents() {
   // Fechar ao clicar fora (BACKDROP) — EXCETO modalDetalhes
   document.addEventListener('click', (e) => {
     if (!e.target.classList.contains('modal')) return;
-
+  
     // modalDetalhes NÃO fecha clicando fora
     if (e.target.id === 'modalDetalhes') return;
-
+  
+    // ✅ closeModal já decide se pode fechar (ex: modalAlimentadores inválido)
     closeModal(e.target.id);
   });
+  
 
   // Fechar com ESC — EXCETO modalDetalhes
   document.addEventListener('keydown', (e) => {

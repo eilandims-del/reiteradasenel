@@ -281,36 +281,68 @@ FILE: index.html
     </div>
   </div>
 
-  <!-- Modal - Alimentadores -->
-  <div id="modalAlimentadores" class="modal">
-    <div class="modal-content modal-sm">
-      <div class="modal-header">
-        <h2>Selecionar Alimentadores</h2>
+<!-- Modal - Alimentadores -->
+<div id="modalAlimentadores" class="modal">
+  <div class="modal-content modal-sm">
+    <div class="modal-header">
+      <h2><i class="fas fa-diagram-project"></i> Selecionar Alimentadores</h2>
 
-        <button class="modal-close">
-          <i class="fas fa-times"></i>
+      <!-- ✅ ID correto pro main.js -->
+      <button id="fecharModalAlim" class="modal-close" title="Fechar">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <!-- ✅ Barra de ações -->
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <!-- ✅ IDs corretos -->
+        <button id="btnAlimAllModal" class="btn btn-primary btn-sm" title="Selecionar TODOS (modo sem filtro)">
+          <i class="fas fa-list"></i> TODOS
+        </button>
+
+        <button id="btnAlimClearModal" class="btn btn-secondary btn-sm" title="Limpar seleção (obrigará escolher novamente)">
+          <i class="fas fa-eraser"></i> Limpar
+        </button>
+
+        <div style="flex:1 1 auto;"></div>
+
+        <!-- ✅ ID correto -->
+        <input
+          id="alimSearchModal"
+          type="text"
+          placeholder="Buscar alimentador..."
+          style="height:32px; min-width:220px; padding:0 .6rem; border-radius:10px; border:1px solid #ddd;"
+        >
+      </div>
+
+      <!-- ✅ Dica / status -->
+      <div id="alimHintModal" style="margin-top:10px; font-size:0.9rem; color: var(--medium-gray); font-weight:800;">
+        Escolha <b>TODOS</b> ou selecione 1+ alimentadores.
+      </div>
+
+      <!-- ✅ Lista (checkboxes) -->
+      <div id="alimListModal" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
+
+      <!-- ✅ Rodapé com botões: Aplicar + Confirmar -->
+      <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+        <!-- ✅ NOVO: aplicar diretamente se já tiver data -->
+        <button id="btnAplicarAlimModal" class="btn btn-secondary">
+          <i class="fas fa-bolt"></i> Aplicar
+        </button>
+
+        <button id="btnConfirmarAlimModal" class="btn btn-primary">
+          <i class="fas fa-check"></i> Confirmar
         </button>
       </div>
 
-      <div class="modal-body">
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <button id="btnAlimAll" class="btn btn-secondary btn-sm">Todos</button>
-          <button id="btnAlimClear" class="btn btn-secondary btn-sm">Limpar</button>
-
-          <div style="flex:1 1 auto;"></div>
-
-          <input id="alimSearch" type="text" placeholder="Buscar alimentador..."
-                style="height:32px; min-width:220px; padding:0 .6rem; border-radius:10px; border:1px solid #ddd;">
-        </div>
-
-        <div id="alimList" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
-
-        <div id="alimHint" style="margin-top:10px; font-size:0.9rem; color: var(--medium-gray); font-weight:700;">
-          Selecione o período e clique em <b>Aplicar</b> para listar alimentadores disponíveis.
-        </div>
+      <!-- ✅ Mensagem “obrigatório” (opcional, só UI) -->
+      <div id="alimObrigatorioMsg" style="margin-top:10px; font-size:0.85rem; color:#b91c1c; font-weight:900; display:none;">
+        Selecione <b>TODOS</b> ou pelo menos <b>1 alimentador</b> para fechar.
       </div>
     </div>
   </div>
+</div>
 
   <!-- Toast Notification -->
   <div id="toast" class="toast">
