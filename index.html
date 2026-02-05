@@ -1,8 +1,11 @@
+<!-- =========================
+FILE: index.html
+========================= -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de Visualização das Reiteradas - ENEL</title>
 
   <!-- ✅ Open Graph / WhatsApp / LinkedIn -->
@@ -15,184 +18,343 @@
   <meta property="og:image:height" content="630" />
   <meta property="og:image:type" content="image/png" />
 
-  <!-- ✅ Twitter -->
+  <!-- ✅ Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Reiteradas - ENEL" />
   <meta name="twitter:description" content="Sistema de Visualização das Reiteradas - Painel de análise operacional." />
   <meta name="twitter:image" content="https://eilandims-del.github.io/reiteradasenel/assets/logo-enel-preview.png" />
 
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <!-- ✅ Favicon (força refresh com v=2) -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/logo-enel-preview.png?v=2">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/logo-enel-preview.png?v=2">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/logo-enel-preview.png?v=2">
+  <link rel="shortcut icon" href="assets/logo-enel-preview.png?v=2">
 
-  <!-- Leaflet -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-  <!-- ✅ Estilos (CORRETO) -->
-  <link rel="stylesheet" href="css/styles.css" />
-
-  <!-- ✅ Favicon: só mantém se existir na raiz do repo -->
-  <!-- Se você NÃO tiver favicon.ico na raiz, comente a linha abaixo -->
-  <!-- <link rel="icon" href="favicon.ico"> -->
-
-  <!-- Font Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
+  <!-- Header -->
   <header class="header">
     <div class="header-content">
-      <div class="logo">
-        <!-- ✅ Logo (CORRETO) -->
-        <!-- No zip antigo, o logo do topo era assets/enel1.png -->
-        <img src="assets/enel1.png" alt="ENEL" />
+      <!-- ESQUERDA: LOGO + TEXTOS -->
+      <div class="header-left">
+        <img src="assets/enel1.png" alt="ENEL Brasil" class="header-logo" />
 
-        <div>
-          <h1>Reiteradas - ENEL</h1>
-          <p>Painel de análise operacional</p>
+        <div class="header-text">
+          <h1 class="header-title">Reiteradas - ENEL</h1>
+          <p class="header-subtitle">Sistema de Visualização das Reiteradas</p>
         </div>
       </div>
 
+      <!-- DIREITA: BOTÕES -->
       <div class="header-actions">
-        <button id="btnAdicionarInfo" class="btn btn-secondary">
-          <i class="fas fa-circle-info"></i> Adicionar Informações
-        </button>
-
-        <button id="copiarRankingElemento" class="btn btn-primary">
-          <i class="fas fa-copy"></i> COPIAR
-        </button>
+        <a class="btn btn-secondary btn-sm" href="index.html">
+          <i class="fas fa-home"></i> Página Inicial
+        </a>
+        <a class="btn btn-primary btn-sm" href="admin.html">
+          <i class="fas fa-sign-in-alt"></i> Login
+        </a>
       </div>
     </div>
   </header>
 
+  <!-- Main Content -->
   <main class="main-content">
+    <div class="container">
 
-    <!-- =========================
-         REGIONAL
-    ========================== -->
-    <section class="filter-section card">
-      <h2 class="section-title">
-        <i class="fas fa-layer-group"></i> Regional
-      </h2>
+      <!-- ✅ Seleção de Regional (OBRIGATÓRIO) -->
+      <section class="filter-section card">
+        <h2 class="section-title">
+          <i class="fas fa-layer-group"></i> Regional
+          <span style="font-size: 0.95rem; font-weight: 800; margin-left: 10px; color: var(--medium-gray);">
+            Selecionada: <span id="regionalAtualLabel">—</span>
+          </span>
+        </h2>
 
-      <div class="regional-buttons">
-        <button id="btnRegionalAtlantico" class="btn btn-secondary">
-          <i class="fas fa-water"></i> ATLÂNTICO
-        </button>
+        <div class="filter-controls" style="flex-wrap: wrap;">
+          <button id="btnRegionalAtlantico" class="btn btn-secondary">
+            <i class="fas fa-location-dot"></i> ATLANTICO
+          </button>
+          <button id="btnRegionalNorte" class="btn btn-secondary">
+            <i class="fas fa-location-dot"></i> NORTE
+          </button>
+          <button id="btnRegionalCentroNorte" class="btn btn-secondary">
+            <i class="fas fa-location-dot"></i> CENTRO NORTE
+          </button>
 
-        <button id="btnRegionalNorte" class="btn btn-secondary">
-          <i class="fas fa-compass"></i> NORTE
-        </button>
+          <div style="flex: 1 1 auto;"></div>
 
-        <button id="btnRegionalCentroNorte" class="btn btn-secondary">
-          <i class="fas fa-bolt"></i> CENTRO NORTE
+          <div style="font-size: 0.9rem; color: var(--medium-gray); font-weight: 700;">
+            * Os dados só carregam ao selecionar <b>Regional</b> + <b>Período</b> e clicar em <b>Aplicar</b>.
+          </div>
+        </div>
+      </section>
+
+    <!-- ✅ Botão Alimentadores (abre modal) -->
+    <section id="alimFilterSection" class="filter-section card" style="display:none;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <h2 class="section-title" style="margin-bottom:0;">
+          <i class="fas fa-diagram-project"></i> Alimentadores
+        </h2>
+
+        <button id="btnOpenAlimentadores" class="btn btn-secondary">
+          <i class="fas fa-sliders"></i> ALIMENTADORES
         </button>
       </div>
 
-      <div class="filter-summary" style="margin-top:10px; font-size:0.95rem; color: var(--medium-gray); font-weight:800;">
-        Selecionada: <span id="regionalAtualLabel">—</span>
-        <span id="alimentadoresSelecionadosLabel" style="margin-left:10px; font-weight:900; color: var(--medium-gray); cursor:pointer;">
-          Alimentadores: —
-        </span>
-      </div>
-
-      <div style="margin-top:8px; font-size:0.9rem; color: var(--medium-gray); font-weight:700;">
-        Clique em uma Regional para escolher os alimentadores (ou TODOS). Depois selecione o período e aplique.
+      <div id="alimHintTop" style="margin-top:10px; font-size:0.9rem; color: var(--medium-gray); font-weight:700;">
+        Selecione o período e clique em <b>Aplicar</b> para habilitar a lista de alimentadores.
       </div>
     </section>
 
-    <!-- =========================
-         FILTRO DE DATAS
-    ========================== -->
-    <section class="filter-section card">
-      <h2 class="section-title">
-        <i class="fas fa-calendar-days"></i> Período
-      </h2>
+      <!-- Filtro de Data -->
+      <section class="filter-section card">
+        <h2 class="section-title">
+          <i class="fas fa-filter"></i> Filtro de Data
+        </h2>
 
-      <div class="filters-row">
-        <div class="input-group">
-          <label for="dataInicial">Data inicial</label>
-          <input type="datetime-local" id="dataInicial" />
-        </div>
+        <div class="filter-controls">
+          <div class="filter-group">
+            <label for="dataInicial">Data Inicial:</label>
+            <input type="date" id="dataInicial" class="date-input">
+          </div>
 
-        <div class="input-group">
-          <label for="dataFinal">Data final</label>
-          <input type="datetime-local" id="dataFinal" />
-        </div>
+          <div class="filter-group">
+            <label for="dataFinal">Data Final:</label>
+            <input type="date" id="dataFinal" class="date-input">
+          </div>
 
-        <div class="filter-actions">
           <button id="aplicarFiltro" class="btn btn-primary">
-            <i class="fas fa-filter"></i> Aplicar
+            <i class="fas fa-check"></i> Aplicar
           </button>
+
           <button id="limparFiltro" class="btn btn-secondary">
-            <i class="fas fa-eraser"></i> Limpar
+            <i class="fas fa-times"></i> Limpar
+          </button>
+        </div>
+      </section>
+
+      <section class="rankings-grid">
+        <!-- Ranking por ELEMENTO -->
+        <section class="card ranking-card">
+          <div class="ranking-header">
+            <h2 class="section-title">
+              <i class="fa-solid fa-angle-right"></i> Ranking Elemento
+            </h2>
+
+            <div class="ranking-controls">
+              <div class="ranking-filters">
+                <button id="btnFiltroTodos" class="btn btn-secondary btn-sm">TODOS</button>
+                <button id="btnFiltroTrafo" class="btn btn-secondary btn-sm">TRAFO</button>
+                <button id="btnFiltroFusivel" class="btn btn-secondary btn-sm">FUSÍVEL</button>
+                <button id="btnFiltroReligador" class="btn btn-secondary btn-sm">RELIGADOR</button>
+              </div>
+
+              <div class="ranking-search">
+                <input id="searchElemento" type="text" placeholder="Pesquisar ELEMENTO..." />
+                <button id="btnClearSearchElemento" class="btn btn-secondary btn-sm" title="Limpar">×</button>
+              </div>
+
+              <div id="rankingElementoTotal" class="btn btn-secondary btn-sm" style="cursor: default;">
+                Reiteradas: 0
+              </div>
+
+              <button id="copiarRankingElemento" class="btn btn-whatsapp btn-sm" title="Copiar ranking ELEMENTO">
+                <i class="fab fa-whatsapp"></i> COPIAR
+              </button>
+            </div>
+          </div>
+
+          <div id="rankingElemento" class="ranking-list ranking-scroll"></div>
+        </section>
+
+        <!-- Ranking por CAUSA -->
+        <section class="card ranking-card">
+          <div class="ranking-header">
+            <h2 class="section-title">
+              <i class="fa-solid fa-angle-right"></i> Ranking Causa
+            </h2>
+          </div>
+
+          <div class="chart-block">
+            <div class="chart-canvas-wrap">
+              <canvas id="chartCausa"></canvas>
+            </div>
+            <div id="chartCausaList" class="chart-scroll-list"></div>
+          </div>
+        </section>
+
+        <!-- Ranking por ALIMENTADOR -->
+        <section class="card ranking-card">
+          <div class="ranking-header">
+            <h2 class="section-title">
+              <i class="fa-solid fa-angle-right"></i> Ranking Alimentador
+            </h2>
+          </div>
+
+          <div class="chart-block">
+            <div class="chart-canvas-wrap">
+              <canvas id="chartAlimentador"></canvas>
+            </div>
+            <div id="chartAlimentadorList" class="chart-scroll-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <!-- MAPA DE CALOR -->
+      <section class="card">
+        <h2 class="section-title">
+          <i class="fas fa-map-marked-alt"></i>
+          Mapa de Calor – Reiterações por Conjunto
+        </h2>
+
+        <div id="mapaCeara" style="width: 100%; height: 420px; border-radius: 14px;"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Modal - Detalhes Ranking -->
+  <div id="modalDetalhes" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Detalhes do ELEMENTO</h2>
+        <div class="modal-header-actions">
+          <button id="btnAdicionarInfo" class="btn btn-sm btn-secondary">
+            <i class="fas fa-plus"></i> Adicionar Info
+          </button>
+
+          <button id="btnExportExcel" class="btn btn-sm btn-secondary" title="Exportar tabela para Excel">
+            <i class="fas fa-file-excel"></i> Exportar
+          </button>
+
+          <button class="modal-close" id="fecharModal">
+            <i class="fas fa-times"></i>
           </button>
         </div>
       </div>
-    </section>
 
-    <!-- =========================
-         RANKING + MAPA + CHARTS
-    ========================== -->
-    <!-- ✅ IMPORTANTE: aqui você precisa manter o resto do HTML original do projeto
-         (ranking, containers, mapa, etc). Se você removeu/encurtou no commit, vai quebrar IDs. -->
+      <div class="modal-body">
+        <div id="detalhesConteudo" class="detalhes-conteudo"></div>
+      </div>
+    </div>
+  </div>
 
-    <!-- =========================
-         MODAL ALIMENTADORES
-    ========================== -->
-    <div id="modalAlimentadores" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3><i class="fas fa-diagram-project"></i> Alimentadores</h3>
-          <button id="fecharModalAlim" class="close-btn">&times;</button>
-        </div>
+  <!-- Modal - Adicionar Info -->
+  <div id="modalAdicionarInfo" class="modal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h2>Adicionar Informações</h2>
+        <button class="modal-close" id="fecharModalInfo">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
 
-        <div class="modal-body">
-          <input id="alimSearchModal" type="text" placeholder="Buscar alimentador..." class="search-input" />
+      <div class="modal-body">
+        <p>Selecione as colunas adicionais para exibir:</p>
+        <div id="listaColunas" class="colunas-lista"></div>
 
-          <div class="modal-actions">
-            <button id="btnAlimAllModal" class="btn btn-primary">
-              <i class="fas fa-list"></i> Todos
-            </button>
-            <button id="btnAlimClearModal" class="btn btn-secondary">
-              <i class="fas fa-eraser"></i> Limpar
-            </button>
-          </div>
-
-          <div id="alimHintModal" style="margin-top:10px; font-weight:800; color: var(--medium-gray);"></div>
-          <div id="alimListModal" class="alim-list"></div>
-
-          <div style="margin-top:14px; display:flex; justify-content:flex-end;">
-            <button id="btnConfirmarAlimModal" class="btn btn-primary">
-              <i class="fas fa-check"></i> Confirmar
-            </button>
-          </div>
+        <div class="modal-footer">
+          <button id="confirmarInfo" class="btn btn-primary">
+            <i class="fas fa-check"></i> Confirmar
+          </button>
+          <button id="cancelarInfo" class="btn btn-secondary">
+            <i class="fas fa-times"></i> Cancelar
+          </button>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- =========================
-         OUTROS MODAIS (mantidos)
-    ========================== -->
-    <!-- ... -->
-  </main>
+  <!-- Modal - Alimentadores -->
+  <div id="modalAlimentadores" class="modal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h2>Selecionar Alimentadores</h2>
+
+        <button class="modal-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button id="btnAlimAll" class="btn btn-secondary btn-sm">Todos</button>
+          <button id="btnAlimClear" class="btn btn-secondary btn-sm">Limpar</button>
+
+          <div style="flex:1 1 auto;"></div>
+
+          <input id="alimSearch" type="text" placeholder="Buscar alimentador..."
+                style="height:32px; min-width:220px; padding:0 .6rem; border-radius:10px; border:1px solid #ddd;">
+        </div>
+
+        <div id="alimList" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
+
+        <div id="alimHint" style="margin-top:10px; font-size:0.9rem; color: var(--medium-gray); font-weight:700;">
+          Selecione o período e clique em <b>Aplicar</b> para listar alimentadores disponíveis.
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <span id="toastMessage"></span>
+  </div>
+
+  <!-- ✅ Footer -->
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <div class="footer-left">
+        <span>© <span id="footerYear"></span> Reiteradas - ENEL</span>
+        <span class="footer-sep">•</span>
+        <span>
+          Criado por
+          <a class="footer-link" href="mailto:eilandims@gmail.com?subject=Contato%20-%20Sistema%20SVR">
+            Lucas Landim
+          </a>
+        </span>
+      </div>
+
+      <div class="footer-right">
+        <a class="footer-link footer-linkedin-icon"
+           href="https://www.linkedin.com/in/lucaslandims"
+           target="_blank"
+           rel="noopener noreferrer"
+           title="LinkedIn">
+          <i class="fab fa-linkedin"></i>
+        </a>
+      </div>
+    </div>
+  </footer>
 
   <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
-  <!-- toGeoJSON + JSZip (KMZ) -->
-  <script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
+  <!-- Charts / XLSX -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- KML / KMZ (ANTES DO MAPA / MAIN) -->
+  <script src="https://unpkg.com/@tmcw/togeojson@5.6.2/dist/togeojson.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
-  <!-- ✅ App (CORRETO) -->
+  <!-- ✅ App -->
   <script type="module" src="js/main.js"></script>
 
   <!-- Ano automático -->
   <script>
     (function () {
-      const el = document.getElementById('anoAtual');
+      var el = document.getElementById('footerYear');
       if (el) el.textContent = new Date().getFullYear();
     })();
   </script>
