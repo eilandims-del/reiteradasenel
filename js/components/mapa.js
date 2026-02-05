@@ -12,22 +12,13 @@ let btnConjRef = null;
 let btnAlimRef = null;
 let legendMounted = false;
 
-// seleção externa (UI fora do mapa)
-let selectedAlimBases = null; // null = todos; Set() = filtrado
-
-export function setSelectedAlimentadores(bases) {
-  if (!bases || !bases.length) {
-    selectedAlimBases = null; // todos
-    return;
-  }
-  selectedAlimBases = new Set(bases.map(normKey));
-}
-
-
 let uiMounted = false;
 let mode = 'CONJUNTO'; // 'CONJUNTO' | 'ALIMENTADOR'
 let lastData = [];
 let renderSeq = 0;
+
+// seleção externa (UI fora do mapa)
+let selectedAlimBases = null; // null = todos; Set() = filtrado
 
 // alimentadorBaseNorm -> { lat, lng, display }
 let alimentadorCenters = {};
@@ -47,26 +38,6 @@ const REGION_FILES = {
 
 let currentRegion = 'TODOS';
 let regionGeoJSONCache = {}; // key -> geojson | null
-
-/* =========================
-   ALIMENTADOR FILTER UI
-========================= */
-let alimPanelMounted = false;
-let alimPanelCollapsed = false;
-let alimSelected = new Set();        // baseKey
-let alimSearchTerm = '';             // texto de busca
-let alimLastItems = [];              // [{ baseKey, label, count }]
-let alimPanelRefs = {
-  wrap: null,
-  headerBtn: null,
-  title: null,
-  body: null,
-  search: null,
-  list: null,
-  btnAll: null,
-  btnClear: null,
-  hint: null
-};
 
 /* =========================
    HELPERS
@@ -90,6 +61,14 @@ function normKey(v) {
     .replace(/_/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function setSelectedAlimentadores(bases) {
+  if (!bases || !bases.length) {
+    selectedAlimBases = null; // todos
+    return;
+  }
+  selectedAlimBases = new Set(bases.map(normKey));
 }
 
 function normalizeRegionalKey(r) {
@@ -337,7 +316,7 @@ function parseKmlLinesToIndex(kmlText) {
 }
 
 async function loadAlimentadorKmlOnce() {
-  if (Object.keys(alimentadorLines).length > 0) return; // ✅ mais seguro: linhas é o que importa
+  if (Object.keys(alimentadorLines).length > 0) return;
   if (kmlLoadPromise) return kmlLoadPromise;
 
   kmlLoadPromise = (async () => {
@@ -446,7 +425,8 @@ function drawRegionBoundary(geojson, label) {
 }
 
 /* =========================
-   UI
+   UI (somente modo + legenda)
+   ✅ REMOVIDO: Painel Alimentadores dentro do mapa
 ========================= */
 function ensureMapUI() {
   if (uiMounted) return;
@@ -548,187 +528,6 @@ function ensureMapUI() {
   });
 
   paintButtons();
-
-  // ✅ Painel Alimentadores (recolhível)
-  mountAlimentadorPanel(container, wrap);
-}
-
-function mountAlimentadorPanel(container, wrap) {
-  if (alimPanelMounted) return;
-  alimPanelMounted = true;
-
-  const panel = document.createElement('div');
-  panel.style.background = 'rgba(255,255,255,0.92)';
-  panel.style.border = '1px solid rgba(0,0,0,0.12)';
-  panel.style.borderRadius = '10px';
-  panel.style.padding = '10px';
-  panel.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
-  panel.style.fontFamily = 'Inter, system-ui, Arial';
-  panel.style.fontSize = '12px';
-  panel.style.fontWeight = '800';
-  panel.style.display = 'none'; // só aparece no modo ALIMENTADOR
-
-  panel.innerHTML = `
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-      <div id="alimTitle" style="font-size:12px; font-weight:900;">Alimentadores</div>
-      <button id="alimToggle" style="
-        padding:4px 8px;border-radius:8px;border:1px solid #ddd;cursor:pointer;font-weight:900;
-        background:#fff;color:#111;
-      ">▾</button>
-    </div>
-
-    <div id="alimBody" style="margin-top:8px;">
-      <input id="alimSearch" type="text" placeholder="Buscar..." style="
-        width:100%; height:30px; padding:0 10px; border-radius:10px; border:1px solid #ddd;
-        font-weight:800; outline:none;
-      " />
-
-      <div style="display:flex; gap:6px; margin-top:8px;">
-        <button id="alimAll" style="flex:1; padding:6px 10px;border-radius:10px;border:1px solid #ddd;cursor:pointer;font-weight:900;background:#0A4A8C;color:#fff;">
-          Todos
-        </button>
-        <button id="alimClear" style="flex:1; padding:6px 10px;border-radius:10px;border:1px solid #ddd;cursor:pointer;font-weight:900;background:#fff;color:#111;">
-          Limpar
-        </button>
-      </div>
-
-      <div id="alimHint" style="margin-top:8px; font-size:11px; font-weight:900; color:#444;"></div>
-
-      <div id="alimList" style="
-        margin-top:8px;
-        max-height:180px;
-        overflow:auto;
-        padding-right:4px;
-        display:flex;
-        flex-direction:column;
-        gap:6px;
-      "></div>
-    </div>
-  `;
-
-  wrap.appendChild(panel);
-
-  alimPanelRefs.wrap = panel;
-  alimPanelRefs.headerBtn = panel.querySelector('#alimToggle');
-  alimPanelRefs.title = panel.querySelector('#alimTitle');
-  alimPanelRefs.body = panel.querySelector('#alimBody');
-  alimPanelRefs.search = panel.querySelector('#alimSearch');
-  alimPanelRefs.list = panel.querySelector('#alimList');
-  alimPanelRefs.btnAll = panel.querySelector('#alimAll');
-  alimPanelRefs.btnClear = panel.querySelector('#alimClear');
-  alimPanelRefs.hint = panel.querySelector('#alimHint');
-
-  const applyCollapsed = () => {
-    if (!alimPanelRefs.body) return;
-    alimPanelRefs.body.style.display = alimPanelCollapsed ? 'none' : 'block';
-    if (alimPanelRefs.headerBtn) alimPanelRefs.headerBtn.textContent = alimPanelCollapsed ? '▸' : '▾';
-  };
-
-  alimPanelRefs.headerBtn?.addEventListener('click', () => {
-    alimPanelCollapsed = !alimPanelCollapsed;
-    applyCollapsed();
-  });
-
-  alimPanelRefs.search?.addEventListener('input', (e) => {
-    alimSearchTerm = String(e.target.value || '');
-    renderAlimentadorList();
-  });
-
-  alimPanelRefs.btnAll?.addEventListener('click', async () => {
-    alimSelected = new Set(alimLastItems.map(x => x.baseKey));
-    renderAlimentadorList();
-    await updateHeatmap(lastData);
-  });
-
-  alimPanelRefs.btnClear?.addEventListener('click', async () => {
-    alimSelected = new Set();
-    renderAlimentadorList();
-    await updateHeatmap(lastData);
-  });
-
-  applyCollapsed();
-}
-
-function setAlimentadorPanelVisible(visible) {
-  if (!alimPanelRefs.wrap) return;
-  alimPanelRefs.wrap.style.display = visible ? 'block' : 'none';
-}
-
-function renderAlimentadorList() {
-  const list = alimPanelRefs.list;
-  const hint = alimPanelRefs.hint;
-  if (!list || !hint) return;
-
-  const term = normKey(alimSearchTerm);
-  const items = (alimLastItems || []).filter(it => {
-    if (!term) return true;
-    return normKey(it.label).includes(term) || normKey(it.baseKey).includes(term);
-  });
-
-  hint.textContent = `Selecionados: ${alimSelected.size} • Disponíveis: ${alimLastItems.length}`;
-
-  list.innerHTML = '';
-  for (const it of items) {
-    const row = document.createElement('label');
-    row.style.display = 'flex';
-    row.style.alignItems = 'center';
-    row.style.justifyContent = 'space-between';
-    row.style.gap = '10px';
-    row.style.padding = '6px 8px';
-    row.style.border = '1px solid rgba(0,0,0,0.08)';
-    row.style.borderRadius = '10px';
-    row.style.background = 'rgba(255,255,255,0.7)';
-    row.style.cursor = 'pointer';
-    row.style.userSelect = 'none';
-
-    const left = document.createElement('div');
-    left.style.display = 'flex';
-    left.style.alignItems = 'center';
-    left.style.gap = '10px';
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = alimSelected.has(it.baseKey);
-    cb.style.transform = 'scale(1.05)';
-
-    const name = document.createElement('div');
-    name.style.fontWeight = '900';
-    name.style.fontSize = '12px';
-    name.textContent = it.label;
-
-    left.appendChild(cb);
-    left.appendChild(name);
-
-    const right = document.createElement('div');
-    right.style.fontWeight = '900';
-    right.style.color = '#111';
-    right.textContent = String(it.count);
-
-    row.appendChild(left);
-    row.appendChild(right);
-
-    cb.addEventListener('click', async (ev) => {
-      ev.stopPropagation();
-      const checked = cb.checked;
-
-      if (checked) alimSelected.add(it.baseKey);
-      else alimSelected.delete(it.baseKey);
-
-      renderAlimentadorList();
-      await updateHeatmap(lastData);
-    });
-
-    row.addEventListener('click', async () => {
-      const checked = !alimSelected.has(it.baseKey);
-      if (checked) alimSelected.add(it.baseKey);
-      else alimSelected.delete(it.baseKey);
-
-      renderAlimentadorList();
-      await updateHeatmap(lastData);
-    });
-
-    list.appendChild(row);
-  }
 }
 
 function updateMapRegionalLabel() {
@@ -780,8 +579,6 @@ export function resetMap() {
 
   if (regionLayer) { try { map.removeLayer(regionLayer); } catch (_) {} regionLayer = null; }
 
-  setAlimentadorPanelVisible(false);
-
   if (btnConjRef && btnAlimRef) {
     const base = 'padding:6px 10px;border-radius:8px;border:1px solid #ddd;cursor:pointer;font-weight:800;';
     const active = 'background:#0A4A8C;color:#fff;border-color:#0A4A8C;';
@@ -792,12 +589,10 @@ export function resetMap() {
 }
 
 /* =========================
-   ALIMENTADOR intensity (robusto, sem depender de center)
+   ALIMENTADOR intensity (robusto)
 ========================= */
 function getAlimRawFromRow(row) {
   if (!row || typeof row !== 'object') return '';
-
-  // tenta variações comuns
   return (
     row['ALIMENT.'] ??
     row['ALIMENT'] ??
@@ -846,10 +641,7 @@ export async function updateHeatmap(data) {
   updateMapRegionalLabel();
 
   // Sem dados: só borda
-  if (!lastData.length) {
-    setAlimentadorPanelVisible(false);
-    return;
-  }
+  if (!lastData.length) return;
 
   const maxCap = 50; // legenda fixa 0 → 50+
 
@@ -857,30 +649,9 @@ export async function updateHeatmap(data) {
   // MODO CONJUNTO
   // =========================
   if (mode === 'CONJUNTO') {
-    setAlimentadorPanelVisible(false);
-
     let points = generateHeatmapByConjunto(lastData);
     if (seq !== renderSeq) return;
     if (!points.length) return;
-
-    // ===== DEBUG diagnóstico ALIMENTADOR =====
-    if (mode === 'ALIMENTADOR') {
-      console.log('[ALIM] points:', points.length);
-      console.log('[ALIM] centers:', Object.keys(alimentadorCenters).length);
-      console.log('[ALIM] linesKeys:', Object.keys(alimentadorLines).length);
-      console.log('[ALIM] sample points bases:', points.slice(0, 5).map(p => p.base || p.label));
-
-      if (selectedAlimBases) {
-        const before = points.length;
-        points = points.filter(p => selectedAlimBases.has(normKey(p.base || p.label)));
-        console.log('[ALIM] filtro UI aplicado:', before, '->', points.length);
-        if (!points.length) {
-          console.warn('[ALIM] após filtro UI, ficou 0 pontos. (Seleção não bate com os bases do dado)');
-          return;
-        }
-      }
-    }
-
 
     // filtrar por regional só se tiver Polygon
     if (regionGeo && geojsonHasPolygon(regionGeo)) {
@@ -936,59 +707,28 @@ export async function updateHeatmap(data) {
   }
 
   // =========================
-  // MODO ALIMENTADOR (FIX)
+  // MODO ALIMENTADOR (sem painel)
   // =========================
-  setAlimentadorPanelVisible(true);
-
-  // carrega KML (linhas)
   await loadAlimentadorKmlOnce();
   if (seq !== renderSeq) return;
 
+  // intensidade por base (a partir do dataset)
   const intensityByBase = buildIntensityByBaseFromRows(lastData);
+  if (!intensityByBase.size) return;
 
-  if (!intensityByBase.size) {
-    console.info('[ALIM] 0 alimentadores encontrados nas linhas do dataset (coluna ALIMENT/ALIMENT.)');
-    return;
+  // bases candidatas: todas do dataset, respeitando filtro externo (se houver)
+  let bases = Array.from(intensityByBase.keys());
+
+  if (selectedAlimBases && selectedAlimBases.size > 0) {
+    bases = bases.filter(b => selectedAlimBases.has(b));
   }
 
-  // monta itens para UI (usa display do KML se tiver)
-  const items = Array.from(intensityByBase.entries())
-    .filter(([, v]) => (Number(v) || 0) > 0)
-    .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
-    .map(([baseKey, count]) => {
-      const display = alimentadorCenters?.[baseKey]?.display || baseKey;
-      return { baseKey, label: display, count: Number(count) || 0 };
-    });
+  // ordena por intensidade
+  bases.sort((a, b) => (intensityByBase.get(b) || 0) - (intensityByBase.get(a) || 0));
 
-  alimLastItems = items;
-
-  // default: seleciona todos (na 1ª vez)
-  if (alimSelected.size === 0 && items.length) {
-    items.forEach(it => alimSelected.add(it.baseKey));
-  }
-
-  renderAlimentadorList();
-
-  // selecionados finais
-  const selectedBases = items
-    .map(it => it.baseKey)
-    .filter(k => alimSelected.has(k));
-
-  const basesToDraw = selectedBases.length ? selectedBases : items.map(it => it.baseKey);
-
-  if (!rankedBases.length) {
-    console.warn('[ALIM] rankedBases = 0 (nenhum alimentador com intensidade > 0)');
-  }
-  const missing = rankedBases.filter(k => !alimentadorLines[k]).slice(0, 10);
-  if (missing.length) {
-    console.warn('[ALIM] NÃO achei linhas no KML para estes bases:', missing);
-    console.warn('[ALIM] dica: baseKey do dado pode não estar no mesmo padrão do KML.');
-  }
-  
-
-  // fila de desenho
+  // desenhar linhas por base
   const queue = [];
-  for (const baseKey of basesToDraw) {
+  for (const baseKey of bases) {
     const lines = alimentadorLines[baseKey];
     if (!lines || !lines.length) continue;
 
@@ -1017,7 +757,7 @@ export async function updateHeatmap(data) {
     for (; i < end; i++) {
       const { latlngs, style } = queue[i];
 
-      // regional filter por amostragem (não depende de center!)
+      // regional filter por amostragem
       if (regionGeo && geojsonHasPolygon(regionGeo)) {
         let anyInside = false;
         for (let k = 0; k < latlngs.length; k += 10) {
@@ -1033,12 +773,6 @@ export async function updateHeatmap(data) {
 
     if (i < queue.length) requestAnimationFrame(drawBatch);
   }
-  
-  console.log('[ALIM] queue linhas:', queue.length);
-  if (!queue.length) {
-    console.warn('[ALIM] queue = 0. Nada para desenhar. Verifique mismatch de baseKey ou KML sem LineString.');
-  }
-  
+
   requestAnimationFrame(drawBatch);
-  
 }
