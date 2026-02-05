@@ -129,7 +129,7 @@ function getCatalogForSelectedRegional() {
 }
 
 function updateAlimentadoresBadge() {
-  const el = document.getElementById('alimentadoresSelecionadosLabel');
+  const el = document.getElementById('badgeOpenAlimentadores');
   if (!el) return;
 
   if (!selectedRegional) {
@@ -235,14 +235,15 @@ function openAlimentadoresModal() {
   updateAlimentadoresHint(hintEl, catalog, counts);
 
   // busca (liga uma vez por abertura)
-  searchEl?.addEventListener('input', (e) => {
-    const term = String(e.target.value || '').trim().toUpperCase();
-    Array.from(listEl.children).forEach(chip => {
-      const text = chip.textContent.toUpperCase();
-      chip.style.display = text.includes(term) ? 'flex' : 'none';
-    });
-  }, { once: true });
-
+  if (searchEl) {
+    searchEl.oninput = (e) => {
+      const term = String(e.target.value || '').trim().toUpperCase();
+      Array.from(listEl.children).forEach(chip => {
+        const text = chip.textContent.toUpperCase();
+        chip.style.display = text.includes(term) ? 'flex' : 'none';
+      });
+    };
+  }
   openModal('modalAlimentadores');
 }
 
@@ -347,7 +348,7 @@ function initEventListeners() {
   });
 
   // Badge abre modal
-  document.getElementById('alimentadoresSelecionadosLabel')?.addEventListener('click', () => {
+  document.getElementById('badgeOpenAlimentadores')?.addEventListener('click', () => {
     openAlimentadoresModal();
   });
 

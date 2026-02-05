@@ -76,6 +76,31 @@ FILE: index.html
           <span style="font-size: 0.95rem; font-weight: 800; margin-left: 10px; color: var(--medium-gray);">
             Selecionada: <span id="regionalAtualLabel">—</span>
           </span>
+
+          <!-- ✅ Badge clicável para reabrir modal de alimentadores -->
+          <span
+            id="badgeOpenAlimentadores"
+            title="Selecionar alimentadores"
+            style="
+              margin-left: 12px;
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              padding: 6px 10px;
+              border-radius: 999px;
+              border: 1px solid rgba(0,0,0,0.10);
+              background: rgba(255,255,255,0.75);
+              font-size: 0.9rem;
+              font-weight: 900;
+              color: var(--medium-gray);
+              cursor: pointer;
+              user-select: none;
+              vertical-align: middle;
+            "
+          >
+            <i class="fas fa-diagram-project"></i>
+            Alimentadores
+          </span>
         </h2>
 
         <div class="filter-controls" style="flex-wrap: wrap;">
@@ -96,23 +121,6 @@ FILE: index.html
           </div>
         </div>
       </section>
-
-    <!-- ✅ Botão Alimentadores (abre modal) -->
-    <section id="alimFilterSection" class="filter-section card" style="display:none;">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-        <h2 class="section-title" style="margin-bottom:0;">
-          <i class="fas fa-diagram-project"></i> Alimentadores
-        </h2>
-
-        <button id="btnOpenAlimentadores" class="btn btn-secondary">
-          <i class="fas fa-sliders"></i> ALIMENTADORES
-        </button>
-      </div>
-
-      <div id="alimHintTop" style="margin-top:10px; font-size:0.9rem; color: var(--medium-gray); font-weight:700;">
-        Selecione o período e clique em <b>Aplicar</b> para habilitar a lista de alimentadores.
-      </div>
-    </section>
 
       <!-- Filtro de Data -->
       <section class="filter-section card">
@@ -303,7 +311,6 @@ FILE: index.html
       </div>
     </div>
   </div>
-
 
   <!-- Toast Notification -->
   <div id="toast" class="toast">
