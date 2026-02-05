@@ -96,6 +96,36 @@ FILE: index.html
           </div>
         </div>
       </section>
+      <!-- ✅ Filtro de Alimentadores (aparece após escolher Regional) -->
+    <section id="alimFilterSection" class="filter-section card" style="display:none;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <h2 class="section-title" style="margin-bottom:0;">
+          <i class="fas fa-diagram-project"></i> Alimentadores
+        </h2>
+
+        <button id="btnToggleAlimPanel" class="btn btn-secondary btn-sm">
+          <i class="fas fa-chevron-down"></i> Expandir
+        </button>
+      </div>
+
+      <div id="alimPanelBody" style="margin-top:12px; display:none;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button id="btnAlimAll" class="btn btn-secondary btn-sm">Todos</button>
+          <button id="btnAlimClear" class="btn btn-secondary btn-sm">Limpar</button>
+
+          <div style="flex:1 1 auto;"></div>
+
+          <input id="alimSearch" type="text" placeholder="Buscar alimentador..." style="height:32px; min-width:220px; padding:0 .6rem; border-radius:10px; border:1px solid #ddd;">
+        </div>
+
+        <div id="alimList" style="margin-top:12px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+
+        <div id="alimHint" style="margin-top:10px; font-size:0.9rem; color: var(--medium-gray); font-weight:700;">
+          Selecione um período e clique em <b>Aplicar</b> para listar alimentadores com reiteradas.
+        </div>
+      </div>
+    </section>
+
 
       <!-- Filtro de Data -->
       <section class="filter-section card">

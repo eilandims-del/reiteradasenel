@@ -15,7 +15,9 @@ import {
   getRankingViewRows
 } from './components/ranking.js';
 import { updateCharts } from './components/charts.js';
-import { updateHeatmap, initMap, setMapRegional, resetMap } from './components/mapa.js';
+import { updateHeatmap, initMap, setMapRegional, resetMap, setSelectedAlimentadores } from './components/mapa.js';
+import { getFieldValue } from './services/data-service.js';
+
 import {
   openModal,
   closeModal,
@@ -86,6 +88,80 @@ function setRegionalUI(regional) {
   if (label) label.textContent = regional ? regional : '—';
 }
 
+function extractAlimBaseLocal(v) {
+  const s = String(v ?? '').trim().toUpperCase();
+  const m = s.match(/([A-Z]{3}\s?\d{2})/);
+  if (!m) return '';
+  return m[1].replace(/\s+/g, '');
+}
+
+function showAlimSection() {
+  const sec = document.getElementById('alimFilterSection');
+  if (sec) sec.style.display = 'block';
+}
+
+function resetAlimUIEmpty() {
+  const list = document.getElementById('alimList');
+  const hint = document.getElementById('alimHint');
+  if (list) list.innerHTML = '';
+  if (hint) hint.style.display = 'block';
+  setSelectedAlimentadores(null);
+}
+
+function renderAlimentadoresFromData(rows) {
+  const listEl = document.getElementById('alimList');
+  const hint = document.getElementById('alimHint');
+  if (!listEl) return;
+
+  const counts = new Map();
+
+  (rows || []).forEach(r => {
+    const raw =
+      getFieldValue(r, 'ALIMENT.') ||
+      getFieldValue(r, 'ALIMENTADOR') ||
+      getFieldValue(r, 'ALIMENT');
+
+    const base = extractAlimBaseLocal(raw);
+    if (!base) return;
+    counts.set(base, (counts.get(base) || 0) + 1);
+  });
+
+  const items = Array.from(counts.entries())
+    .sort((a,b) => b[1] - a[1]);
+
+  listEl.innerHTML = '';
+
+  if (!items.length) {
+    if (hint) {
+      hint.style.display = 'block';
+      hint.innerHTML = 'Nenhum alimentador encontrado nos dados do período. (Verifique coluna <b>ALIMENT.</b>)';
+    }
+    return;
+  }
+
+  if (hint) hint.style.display = 'none';
+
+  for (const [base, qtd] of items) {
+    const chip = document.createElement('label');
+    chip.className = 'alim-chip';
+    chip.innerHTML = `<input type="checkbox" value="${base}"> ${base} <small>(${qtd})</small>`;
+
+    chip.querySelector('input').addEventListener('change', () => {
+      chip.classList.toggle('active', chip.querySelector('input').checked);
+
+      const selected = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(i => i.value);
+
+      setSelectedAlimentadores(selected);
+      const rowsFromRankingView = getRankingViewRows();
+      updateHeatmap(rowsFromRankingView);
+    });
+
+    listEl.appendChild(chip);
+  }
+}
+
+
 /**
  * Inicializar event listeners
  */
@@ -115,6 +191,9 @@ function initEventListeners() {
     currentData = [];
     renderEmptyState();
     showToast('Regional selecionada: ATLANTICO. Selecione o período e clique em Aplicar.', 'success');
+    showAlimSection();
+    resetAlimUIEmpty();   // limpa UI de alimentadores
+
   });
 
   document.getElementById('btnRegionalNorte')?.addEventListener('click', async () => {
@@ -123,6 +202,9 @@ function initEventListeners() {
     currentData = [];
     renderEmptyState();
     showToast('Regional selecionada: NORTE. Selecione o período e clique em Aplicar.', 'success');
+    showAlimSection();
+    resetAlimUIEmpty();
+
   });
 
   document.getElementById('btnRegionalCentroNorte')?.addEventListener('click', async () => {
@@ -131,6 +213,9 @@ function initEventListeners() {
     currentData = [];
     renderEmptyState();
     showToast('Regional selecionada: CENTRO NORTE. Selecione o período e clique em Aplicar.', 'success');
+    showAlimSection();
+    resetAlimUIEmpty();
+
   });
 
   // Copiar ranking (ELEMENTO)
@@ -208,6 +293,52 @@ function initEventListeners() {
     rerenderFromRankingView();
     searchElemento?.focus();
   });
+  // Painel Alimentadores: expandir/encolher + botões
+document.getElementById('btnToggleAlimPanel')?.addEventListener('click', () => {
+  const body = document.getElementById('alimPanelBody');
+  const btn = document.getElementById('btnToggleAlimPanel');
+  const open = body?.style.display === 'block';
+
+  if (body) body.style.display = open ? 'none' : 'block';
+  if (btn) btn.innerHTML = open
+    ? '<i class="fas fa-chevron-down"></i> Expandir'
+    : '<i class="fas fa-chevron-up"></i> Recolher';
+});
+
+document.getElementById('btnAlimAll')?.addEventListener('click', () => {
+  const listEl = document.getElementById('alimList');
+  if (!listEl) return;
+  listEl.querySelectorAll('input[type="checkbox"]').forEach(i => {
+    i.checked = true;
+    i.closest('.alim-chip')?.classList.add('active');
+  });
+  const selected = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value);
+  setSelectedAlimentadores(selected);
+  updateHeatmap(getRankingViewRows());
+});
+
+document.getElementById('btnAlimClear')?.addEventListener('click', () => {
+  const listEl = document.getElementById('alimList');
+  if (!listEl) return;
+  listEl.querySelectorAll('input[type="checkbox"]').forEach(i => {
+    i.checked = false;
+    i.closest('.alim-chip')?.classList.remove('active');
+  });
+  setSelectedAlimentadores(null);
+  updateHeatmap(getRankingViewRows());
+});
+
+document.getElementById('alimSearch')?.addEventListener('input', (e) => {
+  const term = String(e.target.value || '').trim().toUpperCase();
+  const listEl = document.getElementById('alimList');
+  if (!listEl) return;
+
+  Array.from(listEl.children).forEach(chip => {
+    const text = chip.textContent.toUpperCase();
+    chip.style.display = text.includes(term) ? 'inline-flex' : 'none';
+  });
+});
+
 }
 
 /**
@@ -243,6 +374,7 @@ async function loadDataByPeriod(di, df) {
 
   if (result.success && result.data.length > 0) {
     currentData = result.data;
+    renderAlimentadoresFromData(currentData);
     renderAll();
     showToast(`Filtro aplicado (${selectedRegional}): ${currentData.length} registro(s).`, 'success');
   } else {

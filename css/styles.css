@@ -1371,3 +1371,27 @@ input:focus, select:focus{
   mix-blend-mode: normal !important;
   opacity: 1 !important;
 }
+/* Chips de alimentadores */
+.alim-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  border-radius:999px;
+  border:1px solid var(--border, #e2e8f0);
+  background:#fff;
+  cursor:pointer;
+  font-weight:800;
+  font-size:.85rem;
+  user-select:none;
+}
+.alim-chip input{ accent-color:#0f172a; }
+.alim-chip.active{
+  background:#0f172a;
+  color:#fff;
+  border-color: rgba(15,23,42,0.45);
+}
+.alim-chip small{
+  opacity:.75;
+  font-weight:900;
+}

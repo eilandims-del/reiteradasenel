@@ -12,6 +12,18 @@ let btnConjRef = null;
 let btnAlimRef = null;
 let legendMounted = false;
 
+// seleção externa (UI fora do mapa)
+let selectedAlimBases = null; // null = todos; Set() = filtrado
+
+export function setSelectedAlimentadores(bases) {
+  if (!bases || !bases.length) {
+    selectedAlimBases = null; // todos
+    return;
+  }
+  selectedAlimBases = new Set(bases.map(normKey));
+}
+
+
 let uiMounted = false;
 let mode = 'CONJUNTO'; // 'CONJUNTO' | 'ALIMENTADOR'
 let lastData = [];
@@ -851,6 +863,25 @@ export async function updateHeatmap(data) {
     if (seq !== renderSeq) return;
     if (!points.length) return;
 
+    // ===== DEBUG diagnóstico ALIMENTADOR =====
+    if (mode === 'ALIMENTADOR') {
+      console.log('[ALIM] points:', points.length);
+      console.log('[ALIM] centers:', Object.keys(alimentadorCenters).length);
+      console.log('[ALIM] linesKeys:', Object.keys(alimentadorLines).length);
+      console.log('[ALIM] sample points bases:', points.slice(0, 5).map(p => p.base || p.label));
+
+      if (selectedAlimBases) {
+        const before = points.length;
+        points = points.filter(p => selectedAlimBases.has(normKey(p.base || p.label)));
+        console.log('[ALIM] filtro UI aplicado:', before, '->', points.length);
+        if (!points.length) {
+          console.warn('[ALIM] após filtro UI, ficou 0 pontos. (Seleção não bate com os bases do dado)');
+          return;
+        }
+      }
+    }
+
+
     // filtrar por regional só se tiver Polygon
     if (regionGeo && geojsonHasPolygon(regionGeo)) {
       points = points.filter(p => pointInGeoJSON(p.lat, p.lng, regionGeo));
@@ -945,6 +976,16 @@ export async function updateHeatmap(data) {
 
   const basesToDraw = selectedBases.length ? selectedBases : items.map(it => it.baseKey);
 
+  if (!rankedBases.length) {
+    console.warn('[ALIM] rankedBases = 0 (nenhum alimentador com intensidade > 0)');
+  }
+  const missing = rankedBases.filter(k => !alimentadorLines[k]).slice(0, 10);
+  if (missing.length) {
+    console.warn('[ALIM] NÃO achei linhas no KML para estes bases:', missing);
+    console.warn('[ALIM] dica: baseKey do dado pode não estar no mesmo padrão do KML.');
+  }
+  
+
   // fila de desenho
   const queue = [];
   for (const baseKey of basesToDraw) {
@@ -992,6 +1033,12 @@ export async function updateHeatmap(data) {
 
     if (i < queue.length) requestAnimationFrame(drawBatch);
   }
-
+  
+  console.log('[ALIM] queue linhas:', queue.length);
+  if (!queue.length) {
+    console.warn('[ALIM] queue = 0. Nada para desenhar. Verifique mismatch de baseKey ou KML sem LineString.');
+  }
+  
   requestAnimationFrame(drawBatch);
+  
 }
