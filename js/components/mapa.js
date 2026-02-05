@@ -1,7 +1,7 @@
 // =========================
 // FILE: js/components/mapa.js
 // =========================
-import { generateHeatmapByAlimentador, generateHeatmapByConjunto } from '../services/data-service.js';
+import { generateHeatmapByConjunto } from '../services/data-service.js';
 
 let map;
 let heatLayer;
@@ -16,9 +16,6 @@ let uiMounted = false;
 let mode = 'CONJUNTO'; // 'CONJUNTO' | 'ALIMENTADOR'
 let lastData = [];
 let renderSeq = 0;
-
-// seleção externa (UI fora do mapa)
-let selectedAlimBases = null; // null = todos; Set() = filtrado
 
 // alimentadorBaseNorm -> { lat, lng, display }
 let alimentadorCenters = {};
@@ -63,14 +60,6 @@ function normKey(v) {
     .trim();
 }
 
-export function setSelectedAlimentadores(bases) {
-  if (!bases || !bases.length) {
-    selectedAlimBases = null; // todos
-    return;
-  }
-  selectedAlimBases = new Set(bases.map(normKey));
-}
-
 function normalizeRegionalKey(r) {
   const v = String(r || '').trim().toUpperCase();
   if (v === 'CENTRO NORTE' || v === 'CENTRO_NORTE' || v === 'CENTRONORTE') return 'CENTRO NORTE';
@@ -82,7 +71,6 @@ function normalizeRegionalKey(r) {
 
 function extractAlimBase(name) {
   const n = normKey(name);
-  // pega padrão 3 letras + 2 dígitos (TLM82, TLO21 etc)
   const m = n.match(/([A-Z]{3}\s?\d{2})/);
   if (!m) return n;
   return m[1].replace(/\s+/g, '');
@@ -105,11 +93,11 @@ function purgeAllHeatLayers() {
    Heat gradient (cores vivas)
 ========================= */
 const HEAT_GRADIENT = {
-  0.00: '#1b4cff',   // azul
-  0.25: '#00c46a',   // verde
-  0.50: '#ffe600',   // amarelo
-  0.75: '#ff8a00',   // laranja
-  1.00: '#e60000'    // vermelho
+  0.00: '#1b4cff',
+  0.25: '#00c46a',
+  0.50: '#ffe600',
+  0.75: '#ff8a00',
+  1.00: '#e60000'
 };
 
 function boostIntensity(intensity, maxCap) {
@@ -126,11 +114,11 @@ function scaleIntensityForHeat(intensity, maxCap) {
    Linhas (ALIMENTADOR) - gradiente azul → vermelho
 ========================= */
 const LINE_STOPS = [
-  { t: 0.00, rgb: [ 27,  76, 255] }, // azul
-  { t: 0.25, rgb: [  0, 196, 106] }, // verde
-  { t: 0.50, rgb: [255, 230,   0] }, // amarelo
-  { t: 0.75, rgb: [255, 138,   0] }, // laranja
-  { t: 1.00, rgb: [230,   0,   0] }  // vermelho
+  { t: 0.00, rgb: [ 27,  76, 255] },
+  { t: 0.25, rgb: [  0, 196, 106] },
+  { t: 0.50, rgb: [255, 230,   0] },
+  { t: 0.75, rgb: [255, 138,   0] },
+  { t: 1.00, rgb: [230,   0,   0] }
 ];
 
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -165,7 +153,6 @@ function lineStyleByIntensity(intensity, max) {
 
 /* =========================
    REGION FILTER (GeoJSON point in polygon)
-   ✅ Só filtra se existir Polygon/MultiPolygon
 ========================= */
 function cacheHas(key) {
   return Object.prototype.hasOwnProperty.call(regionGeoJSONCache, key);
@@ -355,7 +342,7 @@ async function loadRegionGeoJSON(regionKey) {
   }
 
   try {
-    if (!window.toGeoJSON) throw new Error('toGeoJSON não encontrado (script não carregado).');
+    if (!window.toGeoJSON) throw new Error('toGeoJSON não encontrado.');
 
     if (cfg.type === 'kml') {
       const res = await fetch(cfg.path, { cache: 'no-store' });
@@ -375,7 +362,7 @@ async function loadRegionGeoJSON(regionKey) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = await res.arrayBuffer();
 
-    if (!window.JSZip) throw new Error('JSZip não encontrado (adicione o script no index.html)');
+    if (!window.JSZip) throw new Error('JSZip não encontrado');
 
     const zip = await window.JSZip.loadAsync(buf);
     const kmlFileName = Object.keys(zip.files).find(n => n.toLowerCase().endsWith('.kml'));
@@ -425,8 +412,7 @@ function drawRegionBoundary(geojson, label) {
 }
 
 /* =========================
-   UI (somente modo + legenda)
-   ✅ REMOVIDO: Painel Alimentadores dentro do mapa
+   UI (sem painel alimentadores)
 ========================= */
 function ensureMapUI() {
   if (uiMounted) return;
@@ -478,7 +464,6 @@ function ensureMapUI() {
   btnConjRef = btnConj;
   btnAlimRef = btnAlim;
 
-  // ✅ Legenda 0 → 50+ (azul → vermelho)
   if (!legendMounted) {
     legendMounted = true;
 
@@ -588,9 +573,6 @@ export function resetMap() {
   }
 }
 
-/* =========================
-   ALIMENTADOR intensity (robusto)
-========================= */
 function getAlimRawFromRow(row) {
   if (!row || typeof row !== 'object') return '';
   return (
@@ -615,9 +597,6 @@ function buildIntensityByBaseFromRows(rows) {
   return acc;
 }
 
-/* =========================
-   MAIN RENDER
-========================= */
 export async function updateHeatmap(data) {
   lastData = Array.isArray(data) ? data : [];
   const seq = ++renderSeq;
@@ -628,32 +607,25 @@ export async function updateHeatmap(data) {
   ensureMapUI();
   purgeAllHeatLayers();
 
-  // limpar layers
   if (heatLayer) { try { map.removeLayer(heatLayer); } catch (_) {} heatLayer = null; }
   if (markersLayer) markersLayer.clearLayers();
   if (linesLayer) linesLayer.clearLayers();
 
-  // Regional: carregar e desenhar contorno
   const regionGeo = await loadRegionGeoJSON(currentRegion);
   if (seq !== renderSeq) return;
 
   drawRegionBoundary(regionGeo, currentRegion);
   updateMapRegionalLabel();
 
-  // Sem dados: só borda
   if (!lastData.length) return;
 
-  const maxCap = 50; // legenda fixa 0 → 50+
+  const maxCap = 50;
 
-  // =========================
-  // MODO CONJUNTO
-  // =========================
   if (mode === 'CONJUNTO') {
     let points = generateHeatmapByConjunto(lastData);
     if (seq !== renderSeq) return;
     if (!points.length) return;
 
-    // filtrar por regional só se tiver Polygon
     if (regionGeo && geojsonHasPolygon(regionGeo)) {
       points = points.filter(p => pointInGeoJSON(p.lat, p.lng, regionGeo));
       if (!points.length) return;
@@ -677,7 +649,6 @@ export async function updateHeatmap(data) {
       gradient: HEAT_GRADIENT
     }).addTo(map);
 
-    // markers
     for (const p of points) {
       L.circleMarker([p.lat, p.lng], {
         radius: 6,
@@ -690,7 +661,6 @@ export async function updateHeatmap(data) {
         .addTo(markersLayer);
     }
 
-    // zoom automático
     const boundsPts = L.latLngBounds(points.map(p => [p.lat, p.lng]));
     if (regionLayer) {
       try {
@@ -706,29 +676,20 @@ export async function updateHeatmap(data) {
     return;
   }
 
-  // =========================
-  // MODO ALIMENTADOR (sem painel)
-  // =========================
+  // ALIMENTADOR (sem painel)
   await loadAlimentadorKmlOnce();
   if (seq !== renderSeq) return;
 
-  // intensidade por base (a partir do dataset)
   const intensityByBase = buildIntensityByBaseFromRows(lastData);
   if (!intensityByBase.size) return;
 
-  // bases candidatas: todas do dataset, respeitando filtro externo (se houver)
-  let bases = Array.from(intensityByBase.keys());
+  const rankedBases = Array.from(intensityByBase.entries())
+    .filter(([, v]) => (Number(v) || 0) > 0)
+    .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
+    .map(([k]) => k);
 
-  if (selectedAlimBases && selectedAlimBases.size > 0) {
-    bases = bases.filter(b => selectedAlimBases.has(b));
-  }
-
-  // ordena por intensidade
-  bases.sort((a, b) => (intensityByBase.get(b) || 0) - (intensityByBase.get(a) || 0));
-
-  // desenhar linhas por base
   const queue = [];
-  for (const baseKey of bases) {
+  for (const baseKey of rankedBases) {
     const lines = alimentadorLines[baseKey];
     if (!lines || !lines.length) continue;
 
@@ -736,16 +697,10 @@ export async function updateHeatmap(data) {
     if (intensity <= 0) continue;
 
     const style = lineStyleByIntensity(intensity, maxCap);
-
-    for (const latlngs of lines) {
-      queue.push({ latlngs, style });
-    }
+    for (const latlngs of lines) queue.push({ latlngs, style });
   }
 
-  if (!queue.length) {
-    console.info('[ALIM] Nenhuma linha encontrada para os alimentadores selecionados. (Provável mismatch com doc.kml)');
-    return;
-  }
+  if (!queue.length) return;
 
   let i = 0;
   const BATCH = 70;
@@ -757,7 +712,6 @@ export async function updateHeatmap(data) {
     for (; i < end; i++) {
       const { latlngs, style } = queue[i];
 
-      // regional filter por amostragem
       if (regionGeo && geojsonHasPolygon(regionGeo)) {
         let anyInside = false;
         for (let k = 0; k < latlngs.length; k += 10) {

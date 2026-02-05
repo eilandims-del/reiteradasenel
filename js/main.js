@@ -3,6 +3,11 @@
 // =========================
 /**
  * Script Principal - Dashboard
+ *
+ * Fluxo (novo):
+ * 1) Seleciona Regional  -> abre Modal de Alimentadores (da regional)
+ * 2) Seleciona Alimentadores (ou "Todos")
+ * 3) Seleciona período (data inicial/final) e clica em Aplicar
  */
 
 import { DataService } from './services/firebase-service.js';
@@ -33,21 +38,20 @@ import { copyToClipboard, showToast, debounce } from './utils/helpers.js';
 let currentData = [];
 let selectedAdditionalColumns = [];
 
-// ✅ filtro alimentadores (global)
-let selectedAlimentadores = new Set(); // normKey(alimentador completo)
-let alimentadorFilterActive = false;   // false => “Todos”
+// ✅ Alimentadores (filtro global)
+// Regra: selectedAlimentadores vazio => "Todos" (sem filtro)
+let selectedAlimentadores = new Set(); // Set(normKey(alimentador completo))
 
 // ✅ Regional selecionada (obrigatório para carregar)
 let selectedRegional = ''; // 'ATLANTICO' | 'NORTE' | 'CENTRO NORTE'
 
+function alimentadorFilterActive() {
+  return selectedAlimentadores && selectedAlimentadores.size > 0;
+}
+
 function getDataWithAlimentadorFilter(data) {
   const rows = Array.isArray(data) ? data : [];
-
-  // “Todos” (sem filtro)
-  if (!alimentadorFilterActive) return rows;
-
-  // se ativou filtro mas não selecionou nada, não retorna nada
-  if (!selectedAlimentadores || selectedAlimentadores.size === 0) return [];
+  if (!alimentadorFilterActive()) return rows;
 
   return rows.filter(row => {
     const alimRaw =
@@ -83,7 +87,7 @@ function renderEmptyState() {
 
   if (rankingContainer) {
     rankingContainer.innerHTML =
-      '<p style="text-align: center; padding: 2rem; color: var(--medium-gray);">Selecione uma <b>Regional</b> e um <b>período</b>, depois clique em <b>Aplicar</b> para carregar os dados.</p>';
+      '<p style="text-align: center; padding: 2rem; color: var(--medium-gray);">Selecione uma <b>Regional</b> para escolher alimentadores. Depois selecione um <b>período</b> e clique em <b>Aplicar</b>.</p>';
   }
 
   try { updateCharts([]); } catch (_) {}
@@ -91,6 +95,8 @@ function renderEmptyState() {
 
   const totalEl = document.getElementById('rankingElementoTotal');
   if (totalEl) totalEl.textContent = 'Reiteradas: 0';
+
+  updateAlimentadoresBadge();
 }
 
 /**
@@ -114,150 +120,147 @@ function setRegionalUI(regional) {
 }
 
 /* =========================
-   Alimentadores helpers (Modal)
+   Alimentadores (Modal)
 ========================= */
 
-function showAlimSection() {
-  const sec = document.getElementById('alimFilterSection');
-  if (sec) sec.style.display = 'block';
-}
-
-function resetAlimUIEmpty() {
-  // “Todos” por padrão (sem filtro)
-  alimentadorFilterActive = false;
-  selectedAlimentadores = new Set();
-
-  // Modal
-  const list = document.getElementById('alimList');
-  const hint = document.getElementById('alimHint');
-  const search = document.getElementById('alimSearch');
-
-  if (list) list.innerHTML = '';
-  if (search) search.value = '';
-
-  if (hint) {
-    hint.style.display = 'block';
-    hint.innerHTML = 'Selecione o período e clique em <b>Aplicar</b> para listar alimentadores.';
-  }
-
-  // Card (mensagem acima do botão)
-  const hintTop = document.getElementById('alimHintTop');
-  if (hintTop) {
-    hintTop.innerHTML = 'Selecione o período e clique em <b>Aplicar</b> para habilitar a lista de alimentadores.';
-  }
-}
-
-function renderAlimentadoresFromData(rows) {
-  const listEl = document.getElementById('alimList');
-  const hint = document.getElementById('alimHint');
-  if (!listEl) return;
-
+function getCatalogForSelectedRegional() {
   const regionalKey = (selectedRegional || '').toUpperCase().trim();
-  const catalog = ALIMENTADORES_POR_REGIONAL[regionalKey] || [];
+  return ALIMENTADORES_POR_REGIONAL[regionalKey] || [];
+}
 
-  // conta ocorrências reais no período
-  const counts = new Map(); // alimKey -> qtd
+function updateAlimentadoresBadge() {
+  const el = document.getElementById('alimentadoresSelecionadosLabel');
+  if (!el) return;
 
-  (rows || []).forEach(r => {
+  if (!selectedRegional) {
+    el.textContent = 'Alimentadores: —';
+    return;
+  }
+
+  if (!alimentadorFilterActive()) {
+    el.textContent = 'Alimentadores: TODOS';
+    return;
+  }
+
+  el.textContent = `Alimentadores: ${selectedAlimentadores.size}`;
+}
+
+function updateAlimentadoresHint(hintEl, catalog, countsMap) {
+  const total = catalog.length;
+  const selected = selectedAlimentadores.size;
+
+  const hasCounts = countsMap && countsMap.size > 0;
+  const disponiveis = hasCounts
+    ? catalog.filter(a => (countsMap.get(normKey(a)) || 0) > 0).length
+    : null;
+
+  if (!selected) {
+    hintEl.innerHTML = hasCounts
+      ? `Modo: <b>TODOS</b> • Disponíveis no período: <b>${disponiveis}</b> • Catálogo: <b>${total}</b>`
+      : `Modo: <b>TODOS</b> • Catálogo: <b>${total}</b>`;
+    return;
+  }
+
+  hintEl.innerHTML = hasCounts
+    ? `Selecionados: <b>${selected}</b> • Disponíveis no período: <b>${disponiveis}</b> • Catálogo: <b>${total}</b>`
+    : `Selecionados: <b>${selected}</b> • Catálogo: <b>${total}</b>`;
+}
+
+function openAlimentadoresModal() {
+  if (!selectedRegional) {
+    showToast('Selecione uma Regional primeiro.', 'error');
+    return;
+  }
+
+  const catalog = getCatalogForSelectedRegional();
+  if (!catalog.length) {
+    showToast('Catálogo de alimentadores não encontrado para esta regional.', 'error');
+    return;
+  }
+
+  const listEl = document.getElementById('alimListModal');
+  const hintEl = document.getElementById('alimHintModal');
+  const searchEl = document.getElementById('alimSearchModal');
+
+  if (!listEl || !hintEl) return;
+  if (searchEl) searchEl.value = '';
+
+  // contagem real só se já tiver dataset carregado
+  const baseRows = Array.isArray(currentData) ? currentData : [];
+  const counts = new Map(); // normKey(alim completo) -> qtd
+
+  baseRows.forEach(r => {
     const raw =
       getFieldValue(r, 'ALIMENT.') ||
       getFieldValue(r, 'ALIMENTADOR') ||
       getFieldValue(r, 'ALIMENT');
 
-    const key = normKey(raw);
-    if (!key) return;
-
-    counts.set(key, (counts.get(key) || 0) + 1);
+    const k = normKey(raw);
+    if (!k) return;
+    counts.set(k, (counts.get(k) || 0) + 1);
   });
-
-  // reset: “Todos” (sem filtro)
-  alimentadorFilterActive = false;
-  selectedAlimentadores = new Set();
 
   listEl.innerHTML = '';
 
-  if (!catalog.length) {
-    if (hint) {
-      hint.style.display = 'block';
-      hint.innerHTML = 'Catálogo de alimentadores não encontrado para esta regional.';
-    }
-    const hintTop = document.getElementById('alimHintTop');
-    if (hintTop) hintTop.innerHTML = 'Catálogo de alimentadores não encontrado para esta regional.';
-    return;
-  }
-
-  if (hint) hint.style.display = 'none';
-
-  // render organizado: ordem do catálogo
   catalog.forEach(alim => {
     const key = normKey(alim);
-    const qtd = counts.get(key) || 0;
+    const qtd = counts.get(key); // pode ser undefined se ainda não aplicou data
+    const checked = selectedAlimentadores.has(key);
 
-    const chip = document.createElement('label');
-    chip.className = 'alim-chip';
-    chip.dataset.key = key;
+    const row = document.createElement('label');
+    row.className = 'alim-chip';
+    row.dataset.key = key;
 
-    const disabled = qtd === 0;
-
-    chip.innerHTML = `
+    row.innerHTML = `
       <span class="alim-left">
-        <input type="checkbox" value="${key}" ${disabled ? 'disabled' : ''}>
+        <input type="checkbox" value="${key}" ${checked ? 'checked' : ''}>
         <span class="alim-name">${alim}</span>
       </span>
-      <small class="alim-count">${qtd}</small>
+      <small class="alim-count">${Number.isFinite(qtd) ? qtd : ''}</small>
     `;
 
-    if (disabled) chip.classList.add('disabled');
-
-    const input = chip.querySelector('input');
+    const input = row.querySelector('input');
     input.addEventListener('change', () => {
-      chip.classList.toggle('active', input.checked);
+      row.classList.toggle('active', input.checked);
+      if (input.checked) selectedAlimentadores.add(key);
+      else selectedAlimentadores.delete(key);
 
-      const checked = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked'))
-        .map(i => i.value);
-
-      selectedAlimentadores = new Set(checked);
-      alimentadorFilterActive = selectedAlimentadores.size > 0;
-
-      // 🔥 linka ranking/cards/mapa
-      renderAll();
+      updateAlimentadoresHint(hintEl, catalog, counts);
     });
 
-    listEl.appendChild(chip);
+    row.classList.toggle('active', checked);
+    listEl.appendChild(row);
   });
 
-  // hints (Modal + Card)
-  const totalCatalogo = catalog.length;
-  const disponiveis = catalog.filter(a => (counts.get(normKey(a)) || 0) > 0).length;
+  updateAlimentadoresHint(hintEl, catalog, counts);
 
-  const hint2 = document.getElementById('alimHint');
-  if (hint2) {
-    hint2.style.display = 'block';
-    hint2.innerHTML = `Disponíveis no período: <b>${disponiveis}</b> • Catálogo: <b>${totalCatalogo}</b>`;
-  }
+  // busca (liga uma vez por abertura)
+  searchEl?.addEventListener('input', (e) => {
+    const term = String(e.target.value || '').trim().toUpperCase();
+    Array.from(listEl.children).forEach(chip => {
+      const text = chip.textContent.toUpperCase();
+      chip.style.display = text.includes(term) ? 'flex' : 'none';
+    });
+  }, { once: true });
 
-  const hintTop = document.getElementById('alimHintTop');
-  if (hintTop) {
-    hintTop.innerHTML = `Clique em <b>ALIMENTADORES</b> para selecionar (disponíveis no período: <b>${disponiveis}</b>).`;
-  }
+  openModal('modalAlimentadores');
 }
 
 /**
  * Renderizar todos os componentes
  */
 function renderAll() {
-  if (currentData.length === 0) return;
+  if (!currentData.length) return;
 
   const base = getDataWithAlimentadorFilter(currentData);
 
-  // 1) Ranking elemento baseado no recorte (alimentadores)
   updateRanking(base);
 
-  // 2) visão do ranking (filtro/busca)
   const rowsFromRankingView = getRankingViewRows();
-
   updateCharts(rowsFromRankingView);
   updateHeatmap(rowsFromRankingView);
+
+  updateAlimentadoresBadge();
 }
 
 /**
@@ -275,50 +278,77 @@ function initEventListeners() {
   document.getElementById('aplicarFiltro')?.addEventListener('click', applyFilters);
   document.getElementById('limparFiltro')?.addEventListener('click', clearFilters);
 
-  // Botão que abre o modal de alimentadores
-  document.getElementById('btnOpenAlimentadores')?.addEventListener('click', () => {
-    openModal('modalAlimentadores');
+  // Modal Alimentadores
+  document.getElementById('fecharModalAlim')?.addEventListener('click', () => closeModal('modalAlimentadores'));
+  document.getElementById('btnConfirmarAlimModal')?.addEventListener('click', () => {
+    closeModal('modalAlimentadores');
+    updateAlimentadoresBadge();
+    if (currentData.length) renderAll();
   });
 
-  // Regional (Home)
+  document.getElementById('btnAlimAllModal')?.addEventListener('click', () => {
+    selectedAlimentadores = new Set(); // TODOS
+    const listEl = document.getElementById('alimListModal');
+    listEl?.querySelectorAll('input[type="checkbox"]').forEach(i => {
+      i.checked = false;
+      i.closest('.alim-chip')?.classList.remove('active');
+    });
+    updateAlimentadoresBadge();
+  });
+
+  document.getElementById('btnAlimClearModal')?.addEventListener('click', () => {
+    selectedAlimentadores = new Set(); // TODOS
+    const listEl = document.getElementById('alimListModal');
+    listEl?.querySelectorAll('input[type="checkbox"]').forEach(i => {
+      i.checked = false;
+      i.closest('.alim-chip')?.classList.remove('active');
+    });
+    updateAlimentadoresBadge();
+  });
+
+  // Regional -> abre modal alimentadores
   document.getElementById('btnRegionalAtlantico')?.addEventListener('click', async () => {
     setRegionalUI('ATLANTICO');
     setMapRegional('ATLANTICO');
 
-    // fecha modal se estiver aberto (evita “lista de outra regional”)
-    closeModal('modalAlimentadores');
-
     currentData = [];
+    selectedAdditionalColumns = [];
+    selectedAlimentadores = new Set();
+
     renderEmptyState();
-    showToast('Regional selecionada: ATLANTICO. Selecione o período e clique em Aplicar.', 'success');
-    showAlimSection();
-    resetAlimUIEmpty();
+    showToast('Regional selecionada: ATLANTICO. Escolha alimentadores (ou TODOS) e depois o período.', 'success');
+    openAlimentadoresModal();
   });
 
   document.getElementById('btnRegionalNorte')?.addEventListener('click', async () => {
     setRegionalUI('NORTE');
     setMapRegional('NORTE');
 
-    closeModal('modalAlimentadores');
-
     currentData = [];
+    selectedAdditionalColumns = [];
+    selectedAlimentadores = new Set();
+
     renderEmptyState();
-    showToast('Regional selecionada: NORTE. Selecione o período e clique em Aplicar.', 'success');
-    showAlimSection();
-    resetAlimUIEmpty();
+    showToast('Regional selecionada: NORTE. Escolha alimentadores (ou TODOS) e depois o período.', 'success');
+    openAlimentadoresModal();
   });
 
   document.getElementById('btnRegionalCentroNorte')?.addEventListener('click', async () => {
     setRegionalUI('CENTRO NORTE');
     setMapRegional('CENTRO NORTE');
 
-    closeModal('modalAlimentadores');
-
     currentData = [];
+    selectedAdditionalColumns = [];
+    selectedAlimentadores = new Set();
+
     renderEmptyState();
-    showToast('Regional selecionada: CENTRO NORTE. Selecione o período e clique em Aplicar.', 'success');
-    showAlimSection();
-    resetAlimUIEmpty();
+    showToast('Regional selecionada: CENTRO NORTE. Escolha alimentadores (ou TODOS) e depois o período.', 'success');
+    openAlimentadoresModal();
+  });
+
+  // Badge abre modal
+  document.getElementById('alimentadoresSelecionadosLabel')?.addEventListener('click', () => {
+    openAlimentadoresModal();
   });
 
   // Copiar ranking
@@ -375,54 +405,7 @@ function initEventListeners() {
     searchElemento?.focus();
   });
 
-  /* =========================
-     Modal Alimentadores - ações
-  ========================= */
-
-  // ✅ “Todos” de verdade = SEM filtro (mostra tudo)
-  document.getElementById('btnAlimAll')?.addEventListener('click', () => {
-    const listEl = document.getElementById('alimList');
-    if (!listEl) return;
-
-    // desmarca tudo visualmente
-    listEl.querySelectorAll('input[type="checkbox"]').forEach(i => {
-      i.checked = false;
-      i.closest('.alim-chip')?.classList.remove('active');
-    });
-
-    selectedAlimentadores = new Set();
-    alimentadorFilterActive = false;
-
-    renderAll();
-  });
-
-  // Limpar também = sem filtro
-  document.getElementById('btnAlimClear')?.addEventListener('click', () => {
-    const listEl = document.getElementById('alimList');
-    if (!listEl) return;
-
-    listEl.querySelectorAll('input[type="checkbox"]').forEach(i => {
-      i.checked = false;
-      i.closest('.alim-chip')?.classList.remove('active');
-    });
-
-    selectedAlimentadores = new Set();
-    alimentadorFilterActive = false;
-
-    renderAll();
-  });
-
-  // Busca no modal
-  document.getElementById('alimSearch')?.addEventListener('input', (e) => {
-    const term = String(e.target.value || '').trim().toUpperCase();
-    const listEl = document.getElementById('alimList');
-    if (!listEl) return;
-
-    Array.from(listEl.children).forEach(chip => {
-      const text = chip.textContent.toUpperCase();
-      chip.style.display = text.includes(term) ? 'flex' : 'none';
-    });
-  });
+  updateAlimentadoresBadge();
 }
 
 /**
@@ -443,22 +426,14 @@ async function loadDataByPeriod(di, df) {
 
   if (result.success && result.data.length > 0) {
     currentData = result.data;
-
-    // lista alimentadores (do dataset completo do período)
-    renderAlimentadoresFromData(currentData);
-
-    // renderiza tudo (respeitando “Todos” inicialmente)
     renderAll();
-
     showToast(`Filtro aplicado (${selectedRegional}): ${currentData.length} registro(s).`, 'success');
   } else {
     currentData = [];
-
     if (rankingContainer) {
       rankingContainer.innerHTML =
         '<p style="text-align: center; padding: 2rem; color: var(--medium-gray);">Nenhum dado encontrado para o período informado nesta Regional.</p>';
     }
-
     updateCharts([]);
     updateHeatmap([]);
     showToast(`Nenhum dado encontrado (${selectedRegional}).`, 'error');
@@ -507,13 +482,10 @@ function clearFilters() {
   setElementoSearch('');
   setElementoFilter('TODOS');
 
-  // reset filtro alimentadores
-  alimentadorFilterActive = false;
   selectedAlimentadores = new Set();
-  resetAlimUIEmpty();
 
   renderEmptyState();
-  showToast('Filtros removidos. Selecione o período e aplique novamente.', 'success');
+  showToast('Filtros removidos. Selecione a Regional e aplique novamente.', 'success');
 }
 
 /**
@@ -577,9 +549,7 @@ function confirmAddInfo() {
   if (modalContent && modalContent.dataset.elemento) {
     const elemento = modalContent.dataset.elemento;
 
-    // respeita filtro de alimentadores no modal de detalhes
     const base = getDataWithAlimentadorFilter(currentData);
-
     const ocorrencias = getOcorrenciasByElemento(base, elemento);
     fillDetailsModal(elemento, ocorrencias, selectedAdditionalColumns);
   }
