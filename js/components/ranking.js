@@ -171,11 +171,8 @@ function updateRankingTotal(rankingView) {
   if (!el) return;
 
   const totalElementos = Array.isArray(rankingView) ? rankingView.length : 0;
-  const totalOcorrencias = Array.isArray(rankingView)
-    ? rankingView.reduce((sum, it) => sum + (Number(it?.count) || 0), 0)
-    : 0;
 
-  el.textContent = `Reiteradas: ${totalElementos} | Ocorr.: ${totalOcorrencias}`;
+  el.textContent = `Reiteradas: ${totalElementos}`;
 
   el.style.cursor = 'pointer';
   el.title = 'Clique para baixar Excel da visão atual (ELEMENTO / DATA / ALIMENTADOR / INCIDÊNCIA)';

@@ -86,7 +86,13 @@ async function init() {
   // ✅ Guard global: bloqueia fechar modalAlimentadores se inválido
   window.__beforeCloseModal = (modalId) => {
     if (modalId !== 'modalAlimentadores') return true;
-    return validateAlimentadoresSelection(true); // silent=true (não fica spamando toast)
+  
+    // se for inválido, bloqueia fechar e avisa
+    const ok = validateAlimentadoresSelection(true);
+    if (!ok) {
+      showToast('⚠️ Selecione "TODOS" ou 1+ alimentadores para fechar.', 'error');
+    }
+    return ok;
   };
 }
 
@@ -162,12 +168,6 @@ function updateAlimentadoresBadge() {
   }
 
   el.innerHTML = badgeHTML(`Alimentadores: ${selectedAlimentadores.size}`);
-}
-
-function showObrigatorioMsg(show) {
-  const msg = document.getElementById('alimObrigatorioMsg');
-  if (!msg) return;
-  msg.style.display = show ? 'block' : 'none';
 }
 
 function updateAlimentadoresHint(hintEl, catalog, countsMap) {
@@ -252,7 +252,7 @@ function openAlimentadoresModal() {
   const btnTodos = document.getElementById('btnAlimAllModal');
   const btnLimpar = document.getElementById('btnAlimClearModal');
 
-  const btnAplicar = document.getElementById('btnAplicarAlimModal');
+  //const btnAplicar = document.getElementById('btnAplicarAlimModal'); --> NÃO USAR
   const btnConfirmar = document.getElementById('btnConfirmarAlimModal');
 
   if (!modal || !listEl || !hintEl) return;
