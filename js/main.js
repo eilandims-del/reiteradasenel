@@ -243,7 +243,7 @@ function openAlimentadoresModal() {
     return;
   }
 
-  // ✅ IDs corretos do SEU HTML (Modal Alimentadores)
+  // ✅ IDs do seu HTML (Modal Alimentadores)
   const modal = document.getElementById('modalAlimentadores');
   const listEl = document.getElementById('alimListModal');
   const hintEl = document.getElementById('alimHintModal');
@@ -251,12 +251,10 @@ function openAlimentadoresModal() {
 
   const btnTodos = document.getElementById('btnAlimAllModal');
   const btnLimpar = document.getElementById('btnAlimClearModal');
+  const btnConfirmar = document.getElementById('btnConfirmarAlimModal');
 
-  const btnAplicar = document.getElementById('btnAplicarAlimModal');      // ✅ era isso que estava faltando
-  const btnConfirmar = document.getElementById('btnConfirmarAlimModal');  // ✅
-
-  if (!modal || !listEl || !hintEl || !btnTodos || !btnLimpar || !btnAplicar || !btnConfirmar) {
-    console.error('[ALIMENTADORES] Elementos do modal não encontrados. Verifique os IDs no index.html');
+  if (!modal || !listEl || !hintEl || !btnTodos || !btnLimpar || !btnConfirmar) {
+    console.error('[ALIMENTADORES] Elementos do modal não encontrados. Confira os IDs no index.html');
     return;
   }
 
@@ -298,11 +296,10 @@ function openAlimentadoresModal() {
       `;
 
       const input = row.querySelector('input');
-
       row.classList.toggle('active', checked);
 
       input.onchange = () => {
-        // qualquer marcação vira CUSTOM
+        // qualquer interação vira CUSTOM
         alimSelectionMode = 'CUSTOM';
 
         row.classList.toggle('active', input.checked);
@@ -320,7 +317,7 @@ function openAlimentadoresModal() {
     updateAlimentadoresBadge();
   };
 
-  // ✅ Botão TODOS: modo explícito TODOS (válido para fechar)
+  // ✅ TODOS (modo sem filtro, mas explicitamente selecionado)
   btnTodos.onclick = (e) => {
     e.preventDefault();
     alimSelectionMode = 'TODOS';
@@ -328,7 +325,7 @@ function openAlimentadoresModal() {
     renderList();
   };
 
-  // ✅ Botão LIMPAR: fica em CUSTOM mas vazio (inválido até marcar 1)
+  // ✅ LIMPAR (CUSTOM vazio -> inválido até marcar 1)
   btnLimpar.onclick = (e) => {
     e.preventDefault();
     alimSelectionMode = 'CUSTOM';
@@ -347,8 +344,8 @@ function openAlimentadoresModal() {
     };
   }
 
-  // ✅ Aplicar (se já tem data, recarrega do Firestore; senão só aplica filtro local)
-  btnAplicar.onclick = async (e) => {
+  // ✅ CONFIRMAR = aplica (se tiver data, recarrega; senão aplica local)
+  btnConfirmar.onclick = async (e) => {
     e.preventDefault();
 
     if (!validateAlimentadoresSelection(false)) return;
@@ -356,34 +353,29 @@ function openAlimentadoresModal() {
     const di = document.getElementById('dataInicial')?.value || '';
     const df = document.getElementById('dataFinal')?.value || '';
 
+    // Se tem data -> recarrega dados (Firestore) e renderiza
     if (di || df) {
-      await applyFiltersDebounced(); // recarrega e renderiza
+      await applyFiltersDebounced();
       closeModal('modalAlimentadores');
       return;
     }
 
-    // sem data -> aplica filtro local se já tiver dataset carregado
+    // Sem data -> aplica filtro local se já tiver currentData
     if (currentData.length) {
       renderAll();
       closeModal('modalAlimentadores');
-    } else {
-      showToast('Selecione um período para carregar os dados.', 'error');
+      return;
     }
-  };
 
-  // ✅ Confirmar: só fecha (mas exige TODOS ou 1+)
-  btnConfirmar.onclick = (e) => {
-    e.preventDefault();
-    if (!validateAlimentadoresSelection(false)) return;
-
-    closeModal('modalAlimentadores');
-    if (currentData.length) renderAll();
+    // Sem data e sem dados
+    showToast('Selecione um período para carregar os dados.', 'error');
   };
 
   // Render inicial e abre
   renderList();
   openModal('modalAlimentadores');
 }
+
 
 
 /**
