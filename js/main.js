@@ -243,7 +243,7 @@ function openAlimentadoresModal() {
     return;
   }
 
-  // ✅ IDs DO SEU HTML (COM "Modal")
+  // ✅ IDs corretos do SEU HTML (Modal Alimentadores)
   const modal = document.getElementById('modalAlimentadores');
   const listEl = document.getElementById('alimListModal');
   const hintEl = document.getElementById('alimHintModal');
@@ -252,17 +252,19 @@ function openAlimentadoresModal() {
   const btnTodos = document.getElementById('btnAlimAllModal');
   const btnLimpar = document.getElementById('btnAlimClearModal');
 
-  //const btnAplicar = document.getElementById('btnAplicarAlimModal'); --> NÃO USAR
-  const btnConfirmar = document.getElementById('btnConfirmarAlimModal');
+  const btnAplicar = document.getElementById('btnAplicarAlimModal');      // ✅ era isso que estava faltando
+  const btnConfirmar = document.getElementById('btnConfirmarAlimModal');  // ✅
 
-  if (!modal || !listEl || !hintEl) return;
+  if (!modal || !listEl || !hintEl || !btnTodos || !btnLimpar || !btnAplicar || !btnConfirmar) {
+    console.error('[ALIMENTADORES] Elementos do modal não encontrados. Verifique os IDs no index.html');
+    return;
+  }
 
   if (searchEl) searchEl.value = '';
 
-  // contagem real só se já tiver dataset carregado (após aplicar datas)
+  // Contagem real (se já tiver dataset carregado)
   const baseRows = Array.isArray(currentData) ? currentData : [];
-  const counts = new Map(); // normKey(alim completo) -> qtd
-
+  const counts = new Map();
   baseRows.forEach(r => {
     const raw =
       getFieldValue(r, 'ALIMENT.') ||
@@ -274,7 +276,6 @@ function openAlimentadoresModal() {
     counts.set(k, (counts.get(k) || 0) + 1);
   });
 
-  // (re)renderiza lista
   const renderList = () => {
     listEl.innerHTML = '';
 
@@ -300,53 +301,40 @@ function openAlimentadoresModal() {
 
       row.classList.toggle('active', checked);
 
-      input.addEventListener('change', () => {
-        alimTouched = true;
+      input.onchange = () => {
+        // qualquer marcação vira CUSTOM
         alimSelectionMode = 'CUSTOM';
 
         row.classList.toggle('active', input.checked);
         if (input.checked) selectedAlimentadores.add(key);
         else selectedAlimentadores.delete(key);
 
-        // se ficou vazio, continua CUSTOM mas inválido até escolher TODOS ou marcar algo
         updateAlimentadoresHint(hintEl, catalog, counts);
         updateAlimentadoresBadge();
-        showObrigatorioMsg(selectedAlimentadores.size === 0);
-      });
+      };
 
       listEl.appendChild(row);
     });
 
     updateAlimentadoresHint(hintEl, catalog, counts);
     updateAlimentadoresBadge();
-
-    // mostra msg obrigatória se ainda não escolheu nada
-    showObrigatorioMsg(!alimTouched || alimSelectionMode === 'NONE' || (alimSelectionMode === 'CUSTOM' && selectedAlimentadores.size === 0));
   };
 
-  // Botão TODOS
-  if (btnTodos) {
-    btnTodos.onclick = (e) => {
-      e.preventDefault();
-      alimTouched = true;
-      alimSelectionMode = 'TODOS';
-      selectedAlimentadores = new Set();
-      renderList();
-    };
-  }
+  // ✅ Botão TODOS: modo explícito TODOS (válido para fechar)
+  btnTodos.onclick = (e) => {
+    e.preventDefault();
+    alimSelectionMode = 'TODOS';
+    selectedAlimentadores = new Set();
+    renderList();
+  };
 
-  // Botão Limpar (limpa seleção e obriga decidir)
-  if (btnLimpar) {
-    btnLimpar.onclick = (e) => {
-      e.preventDefault();
-      alimTouched = true;
-      alimSelectionMode = 'CUSTOM';
-      selectedAlimentadores = new Set();
-      renderList();
-      // obrigatório: vai ficar inválido até marcar algo OU clicar TODOS
-      showObrigatorioMsg(true);
-    };
-  }
+  // ✅ Botão LIMPAR: fica em CUSTOM mas vazio (inválido até marcar 1)
+  btnLimpar.onclick = (e) => {
+    e.preventDefault();
+    alimSelectionMode = 'CUSTOM';
+    selectedAlimentadores = new Set();
+    renderList();
+  };
 
   // Busca
   if (searchEl) {
@@ -359,47 +347,44 @@ function openAlimentadoresModal() {
     };
   }
 
-  // Confirmar (só fecha se válido)
-  if (btnConfirmar) {
-    btnConfirmar.onclick = () => {
-      if (!validateAlimentadoresSelection(false)) return;
+  // ✅ Aplicar (se já tem data, recarrega do Firestore; senão só aplica filtro local)
+  btnAplicar.onclick = async (e) => {
+    e.preventDefault();
+
+    if (!validateAlimentadoresSelection(false)) return;
+
+    const di = document.getElementById('dataInicial')?.value || '';
+    const df = document.getElementById('dataFinal')?.value || '';
+
+    if (di || df) {
+      await applyFiltersDebounced(); // recarrega e renderiza
       closeModal('modalAlimentadores');
-      updateAlimentadoresBadge();
-      if (currentData.length) renderAll();
-    };
-  }
+      return;
+    }
 
-  // Aplicar (se tiver data, carrega; se não, só aplica filtro local ou avisa)
-  if (btnAplicar) {
-    btnAplicar.onclick = async () => {
-      if (!validateAlimentadoresSelection(false)) return;
-
-      const dataInicial = document.getElementById('dataInicial')?.value || '';
-      const dataFinal = document.getElementById('dataFinal')?.value || '';
-
-      if (dataInicial || dataFinal) {
-        await applyFiltersDebounced(); // carrega/recarrega
-        closeModal('modalAlimentadores');
-        return;
-      }
-
-      // sem datas
+    // sem data -> aplica filtro local se já tiver dataset carregado
+    if (currentData.length) {
+      renderAll();
       closeModal('modalAlimentadores');
-      updateAlimentadoresBadge();
+    } else {
+      showToast('Selecione um período para carregar os dados.', 'error');
+    }
+  };
 
-      if (currentData.length) {
-        renderAll(); // filtra localmente se já houver base carregada
-      } else {
-        showToast('Selecione um período e clique em Aplicar para carregar os dados.', 'error');
-      }
-    };
-  }
+  // ✅ Confirmar: só fecha (mas exige TODOS ou 1+)
+  btnConfirmar.onclick = (e) => {
+    e.preventDefault();
+    if (!validateAlimentadoresSelection(false)) return;
 
-  // render inicial
+    closeModal('modalAlimentadores');
+    if (currentData.length) renderAll();
+  };
+
+  // Render inicial e abre
   renderList();
-
   openModal('modalAlimentadores');
 }
+
 
 /**
  * Renderizar todos os componentes
