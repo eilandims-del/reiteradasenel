@@ -9,7 +9,6 @@
  * 🔥 NOVO:
  * - Clique no gráfico de ALIMENTADOR dispara evento:
  *   document.dispatchEvent(new CustomEvent('alimentador:selected', { detail: { nome, qtd, ocorrencias } }))
- *   (para o mapa reagir sem alterar cards/ranking)
  */
 
 import { openModal, fillDetailsModal } from './modal.js';
@@ -44,7 +43,7 @@ function buildRankingWithOccur(data, field) {
   const counts = new Map();
   const ocorrMap = new Map();
 
-  data.forEach(row => {
+  (data || []).forEach(row => {
     const valueRaw = String(getFieldValue(row, field) || '').trim();
     if (!valueRaw) return;
 
@@ -81,23 +80,7 @@ function openDetails(tipo, nome, ocorrencias) {
   openModal('modalDetalhes');
 }
 
-/** Util: escolher texto branco/preto conforme cor de fundo */
-function getReadableTextColor(hex) {
-  try {
-    const h = String(hex || '').replace('#', '').trim();
-    if (h.length !== 6) return '#FFFFFF';
-    const r = parseInt(h.slice(0, 2), 16);
-    const g = parseInt(h.slice(2, 4), 16);
-    const b = parseInt(h.slice(4, 6), 16);
-    // luminância perceptual
-    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    return lum > 0.62 ? '#1A1F2E' : '#FFFFFF';
-  } catch {
-    return '#FFFFFF';
-  }
-}
-
-// ✅ Plugin de % para BARRAS horizontais
+/** ✅ Plugin de % para BARRAS horizontais */
 const barPercentLabelsPlugin = {
   id: 'barPercentLabelsPlugin',
   afterDatasetsDraw(chart, args, opts) {
@@ -231,6 +214,21 @@ export function renderChartCausa(data) {
       responsive: true,
       indexAxis: 'y',
       maintainAspectRatio: false,
+
+      // ✅ some com os nomes do eixo (fica só barras)
+      scales: {
+        y: {
+          ticks: { display: false },
+          grid: { display: false },
+          border: { display: false }
+        },
+        x: {
+          ticks: { display: false },
+          grid: { display: false },
+          border: { display: false }
+        }
+      },
+
       plugins: {
         legend: { display: false },
         title: {
@@ -250,7 +248,7 @@ export function renderChartCausa(data) {
             label: (context) => {
               const label = context.label || '';
               const value = context.parsed?.x ?? context.parsed ?? 0; // bar horizontal -> parsed.x
-              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const total = (context.dataset.data || []).reduce((a, b) => a + (Number(b) || 0), 0);
               const pct = total ? ((value / total) * 100).toFixed(1) : '0.0';
               return `${label}: ${value} (${pct}%)`;
             }
@@ -264,6 +262,7 @@ export function renderChartCausa(data) {
           color: '#0A4A8C'
         }
       },
+
       onClick: (evt, elements) => {
         if (!elements || !elements.length) return;
         const idx = elements[0].index;
@@ -271,6 +270,7 @@ export function renderChartCausa(data) {
         const found = top.find(x => x.name === name);
         if (found) openDetails('CAUSA', found.name, found.ocorrencias);
       },
+
       animation: { duration: 900, easing: 'easeOutQuart' }
     },
     plugins: [barPercentLabelsPlugin]
@@ -315,6 +315,21 @@ export function renderChartAlimentador(data) {
       responsive: true,
       indexAxis: 'y',
       maintainAspectRatio: false,
+
+      // ✅ some com os nomes do eixo (fica só barras)
+      scales: {
+        y: {
+          ticks: { display: false },
+          grid: { display: false },
+          border: { display: false }
+        },
+        x: {
+          ticks: { display: false },
+          grid: { display: false },
+          border: { display: false }
+        }
+      },
+
       plugins: {
         legend: { display: false },
         title: {
@@ -346,7 +361,8 @@ export function renderChartAlimentador(data) {
           color: '#0A4A8C'
         }
       },
-      // ✅ CLIQUE NO ALIMENTADOR: NÃO abre modal; dispara evento pro mapa
+
+      // ✅ CLIQUE NO GRÁFICO (ALIMENTADOR): NÃO abre modal; dispara evento pro mapa
       onClick: (evt, elements) => {
         if (!elements || !elements.length) return;
 
@@ -358,6 +374,7 @@ export function renderChartAlimentador(data) {
 
         emitAlimentadorSelected(found.name, found.count, found.ocorrencias);
       },
+
       animation: { duration: 900, easing: 'easeOutQuart' }
     },
     plugins: [barPercentLabelsPlugin]
