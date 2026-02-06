@@ -239,7 +239,12 @@ function pointInGeoJSON(lat, lng, geojson) {
 /* =========================
    KML (Alimentador lines) - usa doc.kml
 ========================= */
-const KML_PATH_ALIMENTADOR = 'assets/doc.kml';
+  const ALIM_FILES = {
+    'CENTRO NORTE': { type: 'kml', path: 'assets/doc.kml' },
+    'ATLANTICO': { type: 'kmz', path: 'assets/atlantico.kmz' },
+    'NORTE': { type: 'kmz', path: 'assets/norte.kmz' },
+    'TODOS': null
+  };
 
 function parseKmlLinesToIndex(kmlText) {
   const parser = new DOMParser();
@@ -302,30 +307,72 @@ function parseKmlLinesToIndex(kmlText) {
   return { centers, linesByBase };
 }
 
-async function loadAlimentadorKmlOnce() {
-  if (Object.keys(alimentadorLines).length > 0) return;
-  if (kmlLoadPromise) return kmlLoadPromise;
+let alimLoadPromise = null;
+let alimLoadedRegion = null;
 
-  kmlLoadPromise = (async () => {
+async function loadAlimentadoresForRegionOnce(regionKey) {
+  const reg = normalizeRegionalKey(regionKey);
+
+  // se já carregou essa regional, não carrega de novo
+  if (alimLoadedRegion === reg && Object.keys(alimentadorLines).length > 0) return;
+
+  // evita paralelo
+  if (alimLoadPromise) return alimLoadPromise;
+
+  // se não tem arquivo, zera
+  const cfg = ALIM_FILES[reg];
+  if (!cfg) {
+    alimentadorCenters = {};
+    alimentadorLines = {};
+    alimLoadedRegion = reg;
+    return;
+  }
+
+  alimLoadPromise = (async () => {
     try {
-      const res = await fetch(KML_PATH_ALIMENTADOR, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
+      if (!window.toGeoJSON) throw new Error('toGeoJSON não encontrado (script não carregou).');
+      if (!window.JSZip && cfg.type === 'kmz') throw new Error('JSZip não encontrado (script não carregou).');
 
-      const { centers, linesByBase } = parseKmlLinesToIndex(text);
-      alimentadorCenters = centers;
-      alimentadorLines = linesByBase;
+      let kmlText = '';
+
+      if (cfg.type === 'kml') {
+        const res = await fetch(cfg.path, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        kmlText = await res.text();
+      } else {
+        // KMZ -> extrai KML interno
+        const res = await fetch(cfg.path, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = await res.arrayBuffer();
+
+        const zip = await window.JSZip.loadAsync(buf);
+        const kmlFileName = Object.keys(zip.files).find(n => n.toLowerCase().endsWith('.kml'));
+        if (!kmlFileName) throw new Error('KMZ sem arquivo .kml interno');
+
+        kmlText = await zip.files[kmlFileName].async('text');
+      }
+
+      const { centers, linesByBase } = parseKmlLinesToIndex(kmlText);
+
+      alimentadorCenters = centers || {};
+      alimentadorLines = linesByBase || {};
+      alimLoadedRegion = reg;
+
+      console.log('[ALIM] carregado p/ regional:', reg, 'bases:', Object.keys(alimentadorCenters).length);
+
     } catch (e) {
-      console.warn('[KML] Falha ao carregar KML alimentadores:', e);
+      console.warn('[ALIM] Falha ao carregar alimentadores da regional:', reg, e);
       alimentadorCenters = {};
       alimentadorLines = {};
+      alimLoadedRegion = reg;
     } finally {
-      kmlLoadPromise = null;
+      alimLoadPromise = null;
     }
   })();
 
-  return kmlLoadPromise;
+  return alimLoadPromise;
 }
+
 
 /* =========================
    REGION LOADER (KML / KMZ -> GeoJSON)
@@ -597,6 +644,7 @@ function buildBaseDisplayNameMap(rows) {
   return m;
 }
 
+
 function buildIntensityByBaseFromRows(rows) {
   const map = new Map();
 
@@ -695,8 +743,10 @@ export async function updateHeatmap(data) {
   }
 
   // ALIMENTADOR (sem painel)
-  await loadAlimentadorKmlOnce();
+  await loadAlimentadoresForRegionOnce(currentRegion);
   if (seq !== renderSeq) return;
+
+  const displayByBase = buildBaseDisplayNameMap(lastData);
 
   const intensityByBase = buildIntensityByBaseFromRows(lastData);
   if (!intensityByBase.size) return;
@@ -711,11 +761,19 @@ export async function updateHeatmap(data) {
     const lines = alimentadorLines[baseKey];
     if (!lines || !lines.length) continue;
 
-    const intensity = intensityByBase.get(baseKey) || 0;
+    const intensity = Number(intensityByBase.get(baseKey) || 0);
     if (intensity <= 0) continue;
 
+    const display =
+      displayByBase.get(baseKey) ||
+      alimentadorCenters?.[baseKey]?.display ||
+      baseKey;
+
     const style = lineStyleByIntensity(intensity, maxCap);
-    for (const latlngs of lines) queue.push({ latlngs, style });
+
+    for (const latlngs of lines) {
+      queue.push({ baseKey, display, intensity, latlngs, style });
+    }
   }
 
   if (!queue.length) return;
@@ -723,46 +781,34 @@ export async function updateHeatmap(data) {
   let i = 0;
   const BATCH = 70;
 
-  function drawBatch() {
-    if (seq !== renderSeq) return;
+function drawBatch() {
+  if (seq !== renderSeq) return;
 
-    const end = Math.min(i + BATCH, queue.length);
-    for (; i < end; i++) {
-      const { latlngs, style } = queue[i];
+  const end = Math.min(i + BATCH, queue.length);
 
-      if (regionGeo && geojsonHasPolygon(regionGeo)) {
-        let anyInside = false;
-        for (let k = 0; k < latlngs.length; k += 10) {
-          const [lat, lng] = latlngs[k];
-          if (pointInGeoJSON(lat, lng, regionGeo)) { anyInside = true; break; }
-        }
-        if (!anyInside) continue;
+  for (; i < end; i++) {
+    const { baseKey, display, intensity, latlngs, style } = queue[i];
+
+    // filtra por regional (se tiver polígono)
+    if (regionGeo && geojsonHasPolygon(regionGeo)) {
+      let anyInside = false;
+      for (let k = 0; k < latlngs.length; k += 10) {
+        const [lat, lng] = latlngs[k];
+        if (pointInGeoJSON(lat, lng, regionGeo)) { anyInside = true; break; }
       }
-
-      const simplified = decimateLatLngs(latlngs, 6);
-
-      const polyline = L.polyline(simplified, style).addTo(linesLayer);
-      
-      // ===============================
-      // ✅ POPUP DO ALIMENTADOR
-      // ===============================
-      const displayName =
-        alimentadorCenters[baseKey]?.display || baseKey;
-      
-      const intensity =
-        intensityByBase.get(baseKey) || 0;
-      
-      polyline.bindPopup(
-        `<strong>${displayName}</strong><br>Reiteradas: <b>${intensity}</b>`,
-        {
-          closeButton: true,
-          autoPan: true
-        }
-      );      
+      if (!anyInside) continue;
     }
 
-    if (i < queue.length) requestAnimationFrame(drawBatch);
+    const simplified = decimateLatLngs(latlngs, 6);
+
+    const line = L.polyline(simplified, style)
+      .bindPopup(`<strong>${display}</strong><br>Reiteradas (total): <b>${intensity}</b>`);
+
+    line.addTo(linesLayer);
   }
+
+  if (i < queue.length) requestAnimationFrame(drawBatch);
+}
 
   requestAnimationFrame(drawBatch);
 }
