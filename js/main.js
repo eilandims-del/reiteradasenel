@@ -51,8 +51,21 @@ let alimTouched = false;
 // ✅ Regional selecionada
 let selectedRegional = ''; // 'ATLANTICO' | 'NORTE' | 'CENTRO NORTE'
 
+function isAllAlimentadoresSelected() {
+  if (!selectedRegional) return false;
+  const catalog = getCatalogForSelectedRegional();
+  const totalCatalog = catalog.length;
+  if (!totalCatalog) return false;
+  return selectedAlimentadores.size === totalCatalog;
+}
+
 function alimentadorFilterActive() {
-  return alimSelectionMode === 'CUSTOM' && selectedAlimentadores.size > 0;
+  // Filtro só aplica quando for subconjunto (CUSTOM).
+  // Se estiver "TODOS" (selecionou o catálogo inteiro), não filtra.
+  if (!selectedRegional) return false;
+  if (selectedAlimentadores.size === 0) return false;
+  if (isAllAlimentadoresSelected()) return false;
+  return true;
 }
 
 function getDataWithAlimentadorFilter(data) {
@@ -69,6 +82,7 @@ function getDataWithAlimentadorFilter(data) {
     return selectedAlimentadores.has(key);
   });
 }
+
 
 /**
  * Inicializar aplicação
@@ -182,34 +196,6 @@ function updateAlimentadoresBadge() {
   setBadge('Alimentadores: (selecionar)');
 }
 
-
-function updateAlimentadoresHint(hintEl, catalog, countsMap) {
-  const total = catalog.length;
-  const selected = selectedAlimentadores.size;
-
-  const hasCounts = countsMap && countsMap.size > 0;
-  const disponiveis = hasCounts
-    ? catalog.filter(a => (countsMap.get(normKey(a)) || 0) > 0).length
-    : null;
-
-  if (!alimTouched || alimSelectionMode === 'NONE') {
-    hintEl.innerHTML = `Escolha <b>TODOS</b> ou selecione 1+ alimentadores. • Catálogo: <b>${total}</b>`;
-    return;
-  }
-
-  if (alimSelectionMode === 'TODOS') {
-    hintEl.innerHTML = hasCounts
-      ? `Modo: <b>TODOS</b> • Disponíveis no período: <b>${disponiveis}</b> • Catálogo: <b>${total}</b>`
-      : `Modo: <b>TODOS</b> • Catálogo: <b>${total}</b>`;
-    return;
-  }
-
-  // CUSTOM
-  hintEl.innerHTML = hasCounts
-    ? `Selecionados: <b>${selected}</b> • Disponíveis no período: <b>${disponiveis}</b> • Catálogo: <b>${total}</b>`
-    : `Selecionados: <b>${selected}</b> • Catálogo: <b>${total}</b>`;
-}
-
 let __alimCloseWarnTimer = 0;
 
 function warnObrigatorioOnce() {
@@ -293,6 +279,21 @@ function openAlimentadoresModal() {
 
   const totalCatalog = catalog.length;
 
+  const syncAlimSelectionState = () => {
+    alimTouched = true;
+  
+    if (selectedAlimentadores.size === 0) {
+      alimSelectionMode = 'NONE';
+      return;
+    }
+    if (selectedAlimentadores.size === totalCatalog) {
+      alimSelectionMode = 'TODOS';
+      return;
+    }
+    alimSelectionMode = 'CUSTOM';
+  };
+  
+
   const renderHint = () => {
     // TODOS = selecionou tudo
     if (selectedAlimentadores.size === totalCatalog) {
@@ -336,10 +337,12 @@ function openAlimentadoresModal() {
         row.classList.toggle('active', input.checked);
         if (input.checked) selectedAlimentadores.add(key);
         else selectedAlimentadores.delete(key);
-
+      
+        syncAlimSelectionState();
         renderHint();
         updateAlimentadoresBadge();
       };
+      
 
       listEl.appendChild(row);
     });
@@ -353,7 +356,7 @@ function openAlimentadoresModal() {
     e.preventDefault();
 
     selectedAlimentadores = new Set(catalog.map(a => normKey(a)));
-
+    syncAlimSelectionState();
     renderHint();
     updateAlimentadoresBadge();
 
@@ -374,6 +377,7 @@ function openAlimentadoresModal() {
   btnLimpar.onclick = (e) => {
     e.preventDefault();
     selectedAlimentadores = new Set();
+    syncAlimSelectionState();
     renderList();
   };
 
@@ -450,7 +454,7 @@ function initEventListeners() {
   document.getElementById('confirmarInfo')?.addEventListener('click', confirmAddInfo);
   document.getElementById('cancelarInfo')?.addEventListener('click', () => closeModal('modalAdicionarInfo'));
 
-  document.getElementById('aplicarFiltro')?.addEventListener('click', applyFilters);
+  document.getElementById('aplicarFiltro')?.addEventListener('click', applyFiltersDebounced);
   document.getElementById('limparFiltro')?.addEventListener('click', clearFilters);
 
   // Badge abre modal
@@ -603,21 +607,39 @@ async function loadDataByPeriod(di, df) {
     dataFinal: df
   });
 
-  if (result.success && result.data.length > 0) {
+  if (result.success && Array.isArray(result.data) && result.data.length > 0) {
     currentData = result.data;
-    renderAll();
-    showToast(`Filtro aplicado (${selectedRegional}): ${currentData.length} registro(s).`, 'success');
-  } else {
-    currentData = [];
-    if (rankingContainer) {
-      rankingContainer.innerHTML =
-        '<p style="text-align: center; padding: 2rem; color: var(--medium-gray);">Nenhum dado encontrado para o período informado nesta Regional.</p>';
+
+    const base = getDataWithAlimentadorFilter(currentData);
+    if (!base.length) {
+      if (rankingContainer) {
+        rankingContainer.innerHTML =
+          '<p style="text-align: center; padding: 2rem; color: var(--medium-gray);">Nenhuma reiterada encontrada para os alimentadores selecionados neste período.</p>';
+      }
+      updateRanking([]);
+      updateCharts([]);
+      updateHeatmap([]);
+      showToast('Sem reiteradas para os alimentadores selecionados no período.', 'error');
+      return;
     }
-    updateCharts([]);
-    updateHeatmap([]);
-    showToast(`Nenhum dado encontrado (${selectedRegional}).`, 'error');
+
+    renderAll();
+    showToast(`Filtro aplicado (${selectedRegional}): ${base.length} registro(s).`, 'success');
+    return;
   }
+
+  // ✅ fallback quando não vem nada
+  currentData = [];
+  if (rankingContainer) {
+    rankingContainer.innerHTML =
+      '<p style="text-align: center; padding: 2rem; color: var(--medium-gray);">Nenhum dado encontrado para o período informado nesta Regional.</p>';
+  }
+  updateRanking([]);
+  updateCharts([]);
+  updateHeatmap([]);
+  showToast(`Nenhum dado encontrado (${selectedRegional}).`, 'error');
 }
+
 
 /**
  * Aplicar filtros (com debounce)
@@ -646,7 +668,7 @@ const applyFiltersDebounced = debounce(async () => {
 }, 300);
 
 function applyFilters() {
-  applyFiltersDebounced();
+  return applyFiltersDebounced();
 }
 
 /**
