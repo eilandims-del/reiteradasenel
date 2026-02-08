@@ -71,10 +71,14 @@ function normalizeRegionalKey(r) {
 
 function extractAlimBase(name) {
   const n = normKey(name);
-  const m = n.match(/([A-Z]{3}\s?\d{2})/);
+
+  const m = n.match(/([A-Z]{2,4}\s?\d{2,4})/);
+
   if (!m) return n;
+
   return m[1].replace(/\s+/g, '');
 }
+
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
