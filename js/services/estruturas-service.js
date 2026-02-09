@@ -41,12 +41,12 @@ function normKey(v) {
   function pickCategory(pathNames = [], placemarkName = '') {
     const all = [...(pathNames || []), placemarkName].map(normKey).join(' | ');
   
-    // regra: se aparecer CD (ou "CHAVE ... CD"), pega CD; senão F; senão R
-    if (/(^|\s|[|])CD(\s|$|[|])/.test(all) || all.includes(' CD ' ) || all.includes('|CD|') || all.includes('CD ')) return 'CD';
+    // regra: se aparecer CD, pega CD; senão F; senão R
+    if (/(^|\s|[|])CD(\s|$|[|])/.test(all) || all.includes(' CD ') || all.includes('|CD|') || all.includes('CD ')) return 'CD';
     if (/(^|\s|[|])F(\s|$|[|])/.test(all) || all.includes('|F|')) return 'F';
     if (/(^|\s|[|])R(\s|$|[|])/.test(all) || all.includes('|R|')) return 'R';
   
-    // fallback por prefixo tipo "FUS..." / "REL..."
+    // fallback por texto
     if (all.includes('FUS')) return 'F';
     if (all.includes('REL')) return 'R';
   
@@ -54,7 +54,6 @@ function normKey(v) {
   }
   
   function findFolderPathNames(node) {
-    // tenta subir no DOM: Folder -> Folder -> ...
     const out = [];
     let cur = node;
     while (cur) {
@@ -95,7 +94,7 @@ function normKey(v) {
       const cat = pickCategory(pathNames, rawName);
       if (!cat) continue; // só CD/F/R
   
-      const alimBase = extractAlimBase(rawName); // se existir no nome, ajuda a filtrar por alimentador
+      const alimBase = extractAlimBase(rawName);
       const alimKey = normKey(alimBase);
   
       items.push({
@@ -123,13 +122,18 @@ function normKey(v) {
   };
   
   /**
-   * ✅ Ajuste os paths aqui conforme você colocou:
-   * assets/estruturas/<regional>.kmz  (ou .kml)
+   * ✅ PATHS REAIS (conforme você informou):
+   * \assets\estruturas\atlanticoestrutura.kmz
+   * \assets\estruturas\norteestrutura.kmz
+   *
+   * OBS: GitHub Pages é case-sensitive, então mantenha exatamente assim.
    */
   const ESTR_FILES = {
-    'ATLANTICO': { type: 'kmz', path: 'assets/estruturas/atlantico.kmz' },
-    'NORTE': { type: 'kmz', path: 'assets/estruturas/norte.kmz' },
-    'CENTRO NORTE': { type: 'kmz', path: 'assets/estruturas/centro_norte.kmz' }
+    'ATLANTICO': { type: 'kmz', path: 'assets/estruturas/atlanticoestrutura.kmz' },
+    'NORTE': { type: 'kmz', path: 'assets/estruturas/norteestrutura.kmz' },
+  
+    // se você adicionar depois, descomente e coloque o nome correto do arquivo:
+    // 'CENTRO NORTE': { type: 'kmz', path: 'assets/estruturas/centronorteestrutura.kmz' }
   };
   
   async function loadKmlTextFromFile(cfg) {
@@ -165,6 +169,7 @@ function normKey(v) {
     try {
       const kmlText = await loadKmlTextFromFile(cfg);
       const items = parseKmlStructuresPoints(kmlText);
+  
       cache.loaded.add(reg);
       cache.dataByRegional[reg] = items;
   
