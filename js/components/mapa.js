@@ -5,11 +5,18 @@ import { generateHeatmapByConjunto } from '../services/data-service.js';
 import { loadEstruturasRegionalOnce } from '../services/estruturas-service.js';
 
 let map;
+
+// ✅ Base layers (Mapa / Satélite)
+let baseLayerOSM;
+let baseLayerSat;
+let currentBase = 'OSM'; // 'OSM' | 'SAT'
+
 let heatLayer;
 let markersLayer;
 let linesLayer;
 let estruturasLayer;
 let regionLayer;
+
 let btnConjRef = null;
 let btnAlimRef = null;
 let legendMounted = false;
@@ -73,14 +80,10 @@ function normalizeRegionalKey(r) {
 
 function extractAlimBase(name) {
   const n = normKey(name);
-
   const m = n.match(/([A-Z]{2,4}\s?\d{2,4})/);
-
   if (!m) return n;
-
   return m[1].replace(/\s+/g, '');
 }
-
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
@@ -245,12 +248,12 @@ function pointInGeoJSON(lat, lng, geojson) {
 /* =========================
    KML (Alimentador lines) - usa doc.kml
 ========================= */
-  const ALIM_FILES = {
-    'CENTRO NORTE': { type: 'kml', path: 'assets/doc.kml' },
-    'ATLANTICO': { type: 'kmz', path: 'assets/atlantico.kmz' },
-    'NORTE': { type: 'kmz', path: 'assets/norte.kmz' },
-    'TODOS': null
-  };
+const ALIM_FILES = {
+  'CENTRO NORTE': { type: 'kml', path: 'assets/doc.kml' },
+  'ATLANTICO': { type: 'kmz', path: 'assets/atlantico.kmz' },
+  'NORTE': { type: 'kmz', path: 'assets/norte.kmz' },
+  'TODOS': null
+};
 
 function parseKmlLinesToIndex(kmlText) {
   const parser = new DOMParser();
@@ -319,13 +322,9 @@ let alimLoadedRegion = null;
 async function loadAlimentadoresForRegionOnce(regionKey) {
   const reg = normalizeRegionalKey(regionKey);
 
-  // se já carregou essa regional, não carrega de novo
   if (alimLoadedRegion === reg && Object.keys(alimentadorLines).length > 0) return;
-
-  // evita paralelo
   if (alimLoadPromise) return alimLoadPromise;
 
-  // se não tem arquivo, zera
   const cfg = ALIM_FILES[reg];
   if (!cfg) {
     alimentadorCenters = {};
@@ -346,7 +345,6 @@ async function loadAlimentadoresForRegionOnce(regionKey) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         kmlText = await res.text();
       } else {
-        // KMZ -> extrai KML interno
         const res = await fetch(cfg.path, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const buf = await res.arrayBuffer();
@@ -365,7 +363,6 @@ async function loadAlimentadoresForRegionOnce(regionKey) {
       alimLoadedRegion = reg;
 
       console.log('[ALIM] carregado p/ regional:', reg, 'bases:', Object.keys(alimentadorCenters).length);
-
     } catch (e) {
       console.warn('[ALIM] Falha ao carregar alimentadores da regional:', reg, e);
       alimentadorCenters = {};
@@ -378,7 +375,6 @@ async function loadAlimentadoresForRegionOnce(regionKey) {
 
   return alimLoadPromise;
 }
-
 
 /* =========================
    REGION LOADER (KML / KMZ -> GeoJSON)
@@ -410,7 +406,6 @@ async function loadRegionGeoJSON(regionKey) {
       return geojson;
     }
 
-    // KMZ
     const res = await fetch(cfg.path, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = await res.arrayBuffer();
@@ -429,7 +424,6 @@ async function loadRegionGeoJSON(regionKey) {
 
     regionGeoJSONCache[regionKey] = geojson;
     return geojson;
-
   } catch (e) {
     console.warn(`[REGION] Falha ao carregar regional ${regionKey}:`, e);
     regionGeoJSONCache[regionKey] = null;
@@ -498,6 +492,12 @@ function ensureMapUI() {
       <button id="btnModeAlim">Alimentador</button>
     </div>
 
+    <div style="margin-top:10px;">Base:</div>
+    <div style="display:flex; gap:6px;">
+      <button id="btnBaseOSM">Mapa</button>
+      <button id="btnBaseSAT">Satélite</button>
+    </div>
+
     <div style="margin-top:10px; font-size: 11px; color: #444; font-weight: 900;">
       Regional: <span id="mapRegionalLabel">${currentRegion}</span>
     </div>
@@ -516,6 +516,50 @@ function ensureMapUI() {
 
   btnConjRef = btnConj;
   btnAlimRef = btnAlim;
+
+  // ✅ Base map buttons (DENTRO do ensureMapUI)
+  const btnBaseOSM = box.querySelector('#btnBaseOSM');
+  const btnBaseSAT = box.querySelector('#btnBaseSAT');
+
+  const paintButtons = () => {
+    btnConj.style.cssText = styleBtnBase + (mode === 'CONJUNTO' ? styleActive : styleInactive);
+    btnAlim.style.cssText = styleBtnBase + (mode === 'ALIMENTADOR' ? styleActive : styleInactive);
+  };
+
+  const paintBaseButtons = () => {
+    btnBaseOSM.style.cssText = styleBtnBase + (currentBase === 'OSM' ? styleActive : styleInactive);
+    btnBaseSAT.style.cssText = styleBtnBase + (currentBase === 'SAT' ? styleActive : styleInactive);
+  };
+
+  btnConj.addEventListener('click', async () => {
+    if (mode === 'CONJUNTO') return;
+    mode = 'CONJUNTO';
+    paintButtons();
+    await updateHeatmap(lastData);
+  });
+
+  btnAlim.addEventListener('click', async () => {
+    if (mode === 'ALIMENTADOR') return;
+    mode = 'ALIMENTADOR';
+    paintButtons();
+    await updateHeatmap(lastData);
+  });
+
+  btnBaseOSM.addEventListener('click', () => {
+    if (currentBase === 'OSM') return;
+    try { if (baseLayerSat) map.removeLayer(baseLayerSat); } catch (_) {}
+    try { if (baseLayerOSM) baseLayerOSM.addTo(map); } catch (_) {}
+    currentBase = 'OSM';
+    paintBaseButtons();
+  });
+
+  btnBaseSAT.addEventListener('click', () => {
+    if (currentBase === 'SAT') return;
+    try { if (baseLayerOSM) map.removeLayer(baseLayerOSM); } catch (_) {}
+    try { if (baseLayerSat) baseLayerSat.addTo(map); } catch (_) {}
+    currentBase = 'SAT';
+    paintBaseButtons();
+  });
 
   if (!legendMounted) {
     legendMounted = true;
@@ -546,26 +590,8 @@ function ensureMapUI() {
     box.appendChild(legend);
   }
 
-  const paintButtons = () => {
-    btnConj.style.cssText = styleBtnBase + (mode === 'CONJUNTO' ? styleActive : styleInactive);
-    btnAlim.style.cssText = styleBtnBase + (mode === 'ALIMENTADOR' ? styleActive : styleInactive);
-  };
-
-  btnConj.addEventListener('click', async () => {
-    if (mode === 'CONJUNTO') return;
-    mode = 'CONJUNTO';
-    paintButtons();
-    await updateHeatmap(lastData);
-  });
-
-  btnAlim.addEventListener('click', async () => {
-    if (mode === 'ALIMENTADOR') return;
-    mode = 'ALIMENTADOR';
-    paintButtons();
-    await updateHeatmap(lastData);
-  });
-
   paintButtons();
+  paintBaseButtons();
 }
 
 function updateMapRegionalLabel() {
@@ -584,10 +610,20 @@ export function initMap() {
 
   map = L.map('mapaCeara').setView([-4.8, -39.5], 7);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // ✅ Base layers
+  baseLayerOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '© OpenStreetMap'
-  }).addTo(map);
+  });
+
+  baseLayerSat = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Tiles © Esri' }
+  );
+
+  // começa no OSM
+  baseLayerOSM.addTo(map);
+  currentBase = 'OSM';
 
   markersLayer = L.layerGroup().addTo(map);
   linesLayer = L.layerGroup().addTo(map);
@@ -651,7 +687,6 @@ function buildBaseDisplayNameMap(rows) {
   });
   return m;
 }
-
 
 function buildIntensityByBaseFromRows(rows) {
   const map = new Map();
@@ -789,43 +824,41 @@ export async function updateHeatmap(data) {
   let i = 0;
   const BATCH = 40;
 
-function drawBatch() {
-  if (seq !== renderSeq) return;
+  function drawBatch() {
+    if (seq !== renderSeq) return;
 
-  const end = Math.min(i + BATCH, queue.length);
+    const end = Math.min(i + BATCH, queue.length);
 
-  for (; i < end; i++) {
-    const { baseKey, display, intensity, latlngs, style } = queue[i];
+    for (; i < end; i++) {
+      const { display, intensity, latlngs, style } = queue[i];
 
-    // filtra por regional (se tiver polígono)
-    if (regionGeo && geojsonHasPolygon(regionGeo)) {
-      let anyInside = false;
-      for (let k = 0; k < latlngs.length; k += 10) {
-        const [lat, lng] = latlngs[k];
-        if (pointInGeoJSON(lat, lng, regionGeo)) { anyInside = true; break; }
+      if (regionGeo && geojsonHasPolygon(regionGeo)) {
+        let anyInside = false;
+        for (let k = 0; k < latlngs.length; k += 10) {
+          const [lat, lng] = latlngs[k];
+          if (pointInGeoJSON(lat, lng, regionGeo)) { anyInside = true; break; }
+        }
+        if (!anyInside) continue;
       }
-      if (!anyInside) continue;
+
+      const simplified = decimateLatLngs(latlngs, 10);
+
+      const line = L.polyline(simplified, style)
+        .bindPopup(`<strong>${display}</strong><br>Reiteradas (total): <b>${intensity}</b>`);
+
+      line.addTo(linesLayer);
     }
 
-    const simplified = decimateLatLngs(latlngs, 10);
-
-    const line = L.polyline(simplified, style)
-      .bindPopup(`<strong>${display}</strong><br>Reiteradas (total): <b>${intensity}</b>`);
-
-    line.addTo(linesLayer);
+    if (i < queue.length) requestAnimationFrame(drawBatch);
   }
-
-  if (i < queue.length) requestAnimationFrame(drawBatch);
-}
 
   requestAnimationFrame(drawBatch);
 }
-// =========================
-// Estruturas (pinos) - CD / F / R
-// =========================
-// =========================
-// Estruturas (pinos) - CD / F / R
-// =========================
+
+/* =========================
+   Estruturas (pinos) - CD / F / R
+   + popup com Reiteradas e Alimentador (pelo dataset do card)
+========================= */
 function normKey2(v) {
   return String(v ?? '')
     .trim()
@@ -838,7 +871,7 @@ function normKey2(v) {
     .trim();
 }
 
-// ✅ extrai código do elemento (TSZ8821 / RTB0292 / FFF2396 / SEC5218)
+// extrai código tipo SEC5218 / TLM8264 / RTB0292 etc
 function extractElementoCode(el) {
   const s = normKey2(el);
   const m = s.match(/([A-Z]{2,4}\d{4})/);
@@ -875,7 +908,6 @@ function extractAlimBaseFlex(name) {
 function elementToCat(el) {
   const code = extractElementoCode(el) || String(el || '').trim().toUpperCase();
   const first = code.charAt(0);
-
   if (first === 'T') return 'CD';
   if (first === 'R') return 'R';
   if (first === 'F') return 'F';
@@ -896,14 +928,27 @@ export async function updateEstruturasPins(rows, opts = {}) {
   const data = Array.isArray(rows) ? rows : [];
   if (!data.length) return { total: 0, shown: 0 };
 
-  // 1) pega TODOS os códigos de elemento da visão atual (respeitando filtros)
+  // wanted codes + contagem/alim pelo dataset do card
   const wantedElements = new Set();
+  const elemCount = new Map();     // code -> qtd
+  const elemAlimCount = new Map(); // code -> Map(alim -> qtd)
+
+  function bestAlimFor(code) {
+    const m = elemAlimCount.get(code);
+    if (!m || !m.size) return '';
+    let best = '';
+    let bestV = -1;
+    for (const [k, v] of m.entries()) {
+      if (v > bestV) { bestV = v; best = k; }
+    }
+    return best;
+  }
 
   for (const r of data) {
     const rawEl = getElementoRawFromRow(r);
     if (!rawEl) continue;
 
-    // filtro por alimentador (se aplicável)
+    // filtro por alimentador
     if (alimFilter !== 'TODOS') {
       const rawAl = getAlimRawFromRow2(r);
       const base = extractAlimBaseFlex(rawAl);
@@ -911,58 +956,69 @@ export async function updateEstruturasPins(rows, opts = {}) {
       if (String(base).toUpperCase() !== alimFilter) continue;
     }
 
-    // filtro por categoria (CD/F/R)
+    // filtro por categoria
     const cat = elementToCat(rawEl);
     if (cat && !catSet.has(cat)) continue;
 
-    // guarda só o código (SEC5218, TLM8264...)
     const code = extractElementoCode(rawEl);
     if (!code) continue;
 
     wantedElements.add(code);
+    elemCount.set(code, (elemCount.get(code) || 0) + 1);
+
+    const rawAl = getAlimRawFromRow2(r);
+    const alimBase = extractAlimBaseFlex(rawAl);
+    if (alimBase) {
+      if (!elemAlimCount.has(code)) elemAlimCount.set(code, new Map());
+      const m = elemAlimCount.get(code);
+      const k = String(alimBase).toUpperCase();
+      m.set(k, (m.get(k) || 0) + 1);
+    }
   }
 
   if (!wantedElements.size) return { total: 0, shown: 0 };
 
-  // 2) Carrega estruturas da regional
+  // carrega estruturas da regional
   const estruturas = await loadEstruturasRegionalOnce(regional);
   if (!estruturas.length) return { total: 0, shown: 0 };
 
-  // 3) Match robusto:
-  //    tenta comparar pelo nameKey, e se não bater, extrai o código do próprio name/nameKey
+  // match robusto
   const matches = estruturas.filter(p => {
     if (!p) return false;
-  
+
     const pCat = String(p.category || '').toUpperCase().trim();
     if (!catSet.has(pCat)) return false;
-  
-    // tenta extrair SEM depender do nameKey
+
     const pCode = extractElementoCode(p.name) || extractElementoCode(p.nameKey) || '';
     if (!pCode) return false;
-  
+
     return wantedElements.has(pCode);
   });
 
-
   if (!matches.length) return { total: estruturas.length, shown: 0 };
 
-  // 4) Desenha pins
   for (const p of matches) {
+    const pCode = extractElementoCode(p.name) || extractElementoCode(p.nameKey) || (p.nameKey || p.name || '');
+    const qtd = elemCount.get(pCode) || 0;
+    const alim = bestAlimFor(pCode);
+
     const marker = L.marker([p.lat, p.lng]).bindPopup(
-      `<strong>${p.name}</strong><br>Cat: <b>${p.category}</b>`
+      `
+      <strong>${pCode}</strong>
+      <br>Cat: <b>${p.category}</b>
+      <br>Reiteradas: <b>${qtd}</b>
+      ${alim ? `<br>Alimentador: <b>${alim}</b>` : ``}
+      `
     );
+
     marker.addTo(estruturasLayer);
   }
 
-  // 5) Ajusta bounds
   try {
     const b = L.latLngBounds(matches.map(p => [p.lat, p.lng]));
     if (b.isValid()) map.fitBounds(b, { padding: [40, 40] });
   } catch (_) {}
 
-  // debug (ajuda a confirmar que agora está batendo vários)
   console.log('[PINS] wanted:', wantedElements.size, 'matches:', matches.length);
-
   return { total: estruturas.length, shown: matches.length, matches };
 }
-
