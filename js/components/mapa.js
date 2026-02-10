@@ -905,7 +905,10 @@ export async function updateEstruturasPins(rows, opts = {}) {
     const cat = elementToCat(el);
     if (cat && !catSet.has(cat)) continue;
 
-    wantedElements.add(normKey2(el));
+    // dentro do for (const r of data)...
+    const elNorm = normKey2(el);
+    wantedElements.add(elNorm);
+
   }
 
   if (!wantedElements.size) return { total: 0, shown: 0 };
@@ -916,10 +919,11 @@ export async function updateEstruturasPins(rows, opts = {}) {
 
   // 3) Filtra estruturas que “batem” com os elementos reiterados
   const matches = estruturas.filter(p => {
-    if (!p?.nameKey) return false;
+    if (!p?.structureIdKey) return false;
     if (!catSet.has(String(p.category || '').toUpperCase())) return false;
-    return wantedElements.has(p.nameKey);
+    return wantedElements.has(p.structureIdKey);
   });
+  
 
   if (!matches.length) return { total: estruturas.length, shown: 0 };
 
