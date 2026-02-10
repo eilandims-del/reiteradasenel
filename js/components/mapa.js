@@ -881,13 +881,6 @@ function elementToCat(el) {
   return '';
 }
 
-function extractElementoCode(el) {
-  const s = normKey2(el);
-  const m = s.match(/([A-Z]{2,4}\d{4})/); // pega SEC5218, TLM8264, RTB0292...
-  return m ? m[1] : '';
-}
-
-
 export async function updateEstruturasPins(rows, opts = {}) {
   if (!map) initMap();
   if (!map) return { total: 0, shown: 0 };
