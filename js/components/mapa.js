@@ -670,13 +670,6 @@ function buildIntensityByBaseFromRows(rows) {
   return map;
 }
 
-// ✅ NOVO: extrai código do elemento (TSZ8821 / RTB0292 / FFF2396 / SEC5218)
-function extractElementoCode(el) {
-  const s = normKey2(el);
-  const m = s.match(/([A-Z]{2,4}\d{4})/);
-  return m ? m[1] : '';
-}
-
 export async function updateHeatmap(data) {
   lastData = Array.isArray(data) ? data : [];
   const seq = ++renderSeq;
@@ -830,6 +823,9 @@ function drawBatch() {
 // =========================
 // Estruturas (pinos) - CD / F / R
 // =========================
+// =========================
+// Estruturas (pinos) - CD / F / R
+// =========================
 function normKey2(v) {
   return String(v ?? '')
     .trim()
@@ -840,6 +836,13 @@ function normKey2(v) {
     .replace(/_/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// ✅ extrai código do elemento (TSZ8821 / RTB0292 / FFF2396 / SEC5218)
+function extractElementoCode(el) {
+  const s = normKey2(el);
+  const m = s.match(/([A-Z]{2,4}\d{4})/);
+  return m ? m[1] : '';
 }
 
 function getElementoRawFromRow(row) {
@@ -870,9 +873,8 @@ function extractAlimBaseFlex(name) {
 }
 
 function elementToCat(el) {
-  const s = String(el || '').trim().toUpperCase();
-  if (!s) return '';
-  const first = s.charAt(0);
+  const code = extractElementoCode(el) || String(el || '').trim().toUpperCase();
+  const first = code.charAt(0);
 
   if (first === 'T') return 'CD';
   if (first === 'R') return 'R';
@@ -894,21 +896,31 @@ export async function updateEstruturasPins(rows, opts = {}) {
   const data = Array.isArray(rows) ? rows : [];
   if (!data.length) return { total: 0, shown: 0 };
 
-  // 1) Elementos da visão atual (ranking view)
-  //    e filtro opcional por alimentador
+  // 1) pega TODOS os códigos de elemento da visão atual (respeitando filtros)
   const wantedElements = new Set();
 
   for (const r of data) {
     const rawEl = getElementoRawFromRow(r);
     if (!rawEl) continue;
-  
-    // ... filtros ...
-  
+
+    // filtro por alimentador (se aplicável)
+    if (alimFilter !== 'TODOS') {
+      const rawAl = getAlimRawFromRow2(r);
+      const base = extractAlimBaseFlex(rawAl);
+      if (!base) continue;
+      if (String(base).toUpperCase() !== alimFilter) continue;
+    }
+
+    // filtro por categoria (CD/F/R)
+    const cat = elementToCat(rawEl);
+    if (cat && !catSet.has(cat)) continue;
+
+    // guarda só o código (SEC5218, TLM8264...)
     const code = extractElementoCode(rawEl);
     if (!code) continue;
-  
+
     wantedElements.add(code);
-  }  
+  }
 
   if (!wantedElements.size) return { total: 0, shown: 0 };
 
@@ -916,11 +928,22 @@ export async function updateEstruturasPins(rows, opts = {}) {
   const estruturas = await loadEstruturasRegionalOnce(regional);
   if (!estruturas.length) return { total: 0, shown: 0 };
 
-  // 3) Filtra estruturas que “batem” com os elementos reiterados
+  // 3) Match robusto:
+  //    tenta comparar pelo nameKey, e se não bater, extrai o código do próprio name/nameKey
   const matches = estruturas.filter(p => {
-    if (!p?.nameKey) return false;
-    if (!catSet.has(String(p.category || '').toUpperCase())) return false;
-    return wantedElements.has(p.nameKey);
+    if (!p) return false;
+
+    const pCat = String(p.category || '').toUpperCase().trim();
+    if (!catSet.has(pCat)) return false;
+
+    const pCode =
+      extractElementoCode(p.nameKey) ||
+      extractElementoCode(p.name) ||
+      ''; // fallback
+
+    if (!pCode) return false;
+
+    return wantedElements.has(pCode);
   });
 
   if (!matches.length) return { total: estruturas.length, shown: 0 };
@@ -933,11 +956,15 @@ export async function updateEstruturasPins(rows, opts = {}) {
     marker.addTo(estruturasLayer);
   }
 
-  // 5) Ajusta bounds (sem “forçar” demais)
+  // 5) Ajusta bounds
   try {
     const b = L.latLngBounds(matches.map(p => [p.lat, p.lng]));
     if (b.isValid()) map.fitBounds(b, { padding: [40, 40] });
   } catch (_) {}
 
+  // debug (ajuda a confirmar que agora está batendo vários)
+  console.log('[PINS] wanted:', wantedElements.size, 'matches:', matches.length);
+
   return { total: estruturas.length, shown: matches.length, matches };
 }
+
