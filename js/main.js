@@ -39,19 +39,18 @@ import { copyToClipboard, showToast, debounce } from './utils/helpers.js';
 // ✅ NOVO modal (Regional -> Conjunto -> Alimentadores)
 import { setupAlimentadoresCatalogModal } from './components/modal-alimentadores-catalog.js';
 import {
-  getAllAlimentadoresRegional,
-  getConjuntosByRegional,
+  getAllAlimentadoresForRegional,
   getAlimentadoresByConjunto
 } from './services/alimentadores-catalog.js';
 
 let currentData = [];
 let selectedAdditionalColumns = [];
 
-// ✅ Regional selecionada
+// ✅ Regional selecionada (PRECISA vir antes de usar no modal)
 let selectedRegional = ''; // 'ATLANTICO' | 'NORTE' | 'CENTRO NORTE'
 
 // ✅ seleção do modal
-// mode: 'NONE' | 'ALL' | 'CUSTOM'
+// mode: 'NONE' | 'TODOS' | 'CUSTOM'
 let alimSelection = {
   mode: 'NONE',
   regional: '',
@@ -64,12 +63,24 @@ let alimSelection = {
 let selectedAlimentadores = new Set();
 
 /* =========================
+   Modal Alimentadores (Catálogo)
+========================= */
+const alimModal = setupAlimentadoresCatalogModal({
+  getSelectedRegional: () => selectedRegional,
+  onMissingRegional: () => showToast('Selecione uma Regional primeiro.', 'error')
+});
+
+document.getElementById('badgeOpenAlimentadores')?.addEventListener('click', () => {
+  alimModal.open();
+});
+
+/* =========================
    Alimentadores (catálogo)
 ========================= */
 
 function getCatalogForSelectedRegional() {
   if (!selectedRegional) return [];
-  return getAllAlimentadoresRegional(selectedRegional);
+  return getAllAlimentadoresForRegional(selectedRegional) || [];
 }
 
 function rebuildSelectedAlimentadoresFromSelection() {
@@ -77,10 +88,13 @@ function rebuildSelectedAlimentadoresFromSelection() {
 
   if (!selectedRegional) return;
 
-  if (alimSelection.mode === 'ALL') {
-    // ALL => catálogo inteiro
+  if (alimSelection.mode === 'TODOS') {
+    // TODOS => catálogo inteiro
     const catalog = getCatalogForSelectedRegional();
-    catalog.forEach(a => selectedAlimentadores.add(normKey(a)));
+    catalog.forEach(a => {
+      const k = normKey(a);
+      if (k) selectedAlimentadores.add(k);
+    });
     return;
   }
 
@@ -88,7 +102,7 @@ function rebuildSelectedAlimentadoresFromSelection() {
 
   // CUSTOM => junta:
   // 1) alimentadores marcados
-  // 2) se marcou conjunto(s) mas não marcou alimentador, expande conjuntos -> alimentadores
+  // 2) conjuntos marcados => expande conjuntos -> alimentadores
   const reg = selectedRegional;
   const acc = new Set();
 
@@ -123,10 +137,9 @@ function validateAlimentadoresSelection(silent = false) {
     return false;
   }
 
-  if (alimSelection.mode === 'ALL') return true;
+  if (alimSelection.mode === 'TODOS') return true;
 
   if (alimSelection.mode === 'CUSTOM') {
-    // Se tiver conjuntos, já pode validar (porque vamos expandir)
     const hasConj = Array.isArray(alimSelection.conjuntos) && alimSelection.conjuntos.length > 0;
     const hasAlim = Array.isArray(alimSelection.alimentadores) && alimSelection.alimentadores.length > 0;
 
@@ -159,13 +172,12 @@ function updateAlimentadoresBadge() {
     return;
   }
 
-  if (alimSelection.mode === 'ALL') {
+  if (alimSelection.mode === 'TODOS') {
     setBadge('Alimentadores: TODOS');
     return;
   }
 
   if (alimSelection.mode === 'CUSTOM') {
-    // mostra quantidade efetiva (após expandir conjuntos)
     const qtd = selectedAlimentadores.size;
     if (qtd > 0) setBadge(`Alimentadores: ${qtd}`);
     else setBadge('Alimentadores: (selecionar)');
@@ -217,19 +229,20 @@ async function init() {
   resetMap();
   updateHeatmap([]);
 
-  // ✅ pluga modal novo (ele mesmo abre ao clicar no badge)
-  setupAlimentadoresCatalogModal(() => (selectedRegional || 'NORTE'));
-
   // ✅ recebe seleção do modal
   document.addEventListener('alimentadores:changed', async (e) => {
     const sel = e?.detail || {};
-    // sel.mode: 'ALL' | 'CUSTOM'
+
+    // sel.mode: 'TODOS' | 'CUSTOM' | 'NONE'
     alimSelection = {
-      mode: sel.mode === 'ALL' ? 'ALL' : 'CUSTOM',
+      mode: sel.mode || 'NONE',
       regional: sel.regional || selectedRegional,
       conjuntos: Array.isArray(sel.conjuntos) ? sel.conjuntos : [],
       alimentadores: Array.isArray(sel.alimentadores) ? sel.alimentadores : []
     };
+
+    // garante consistência com a regional atual
+    if (alimSelection.regional && !selectedRegional) selectedRegional = alimSelection.regional;
 
     rebuildSelectedAlimentadoresFromSelection();
     updateAlimentadoresBadge();
@@ -345,7 +358,6 @@ function initEventListeners() {
     renderEmptyState();
     showToast('Regional selecionada: ATLANTICO. Selecione conjuntos/alimentadores e depois o período.', 'success');
 
-    // abre pelo badge (o setup do modal já amarra o click no badge)
     document.getElementById('badgeOpenAlimentadores')?.click();
   });
 
