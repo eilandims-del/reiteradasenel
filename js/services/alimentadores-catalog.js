@@ -1,288 +1,153 @@
 // =========================
-// FILE: js/components/modal-alimentadores-catalog.js
+// FILE: js/services/alimentadores-catalog.js
 // =========================
-import { openModal, closeModal } from './modal.js';
-import {
-  getCatalogForRegional,
-  getConjuntosForRegional,
-  getAlimentadoresByConjunto,
-  getAllAlimentadoresForRegional
-} from '../services/alimentadores-catalog.js';
 
-function normKey(v) {
-  return String(v ?? '')
-    .trim()
-    .toUpperCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/_/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * ✅ Setup do modal de catálogo de alimentadores (por Conjunto)
- * - Compatível com seu index.html atual:
- *   modalAlimentadores, alimListModal, alimHintModal, alimSearchModal,
- *   btnAlimAllModal, btnAlimClearModal, btnConfirmarAlimModal
- *
- * - Dispara evento:
- *   document.dispatchEvent(new CustomEvent('alimentadores:changed', { detail: {...} }))
- */
-export function setupAlimentadoresCatalogModal(opts = {}) {
-  const {
-    // função que retorna a regional atual (ex: () => selectedRegional)
-    getSelectedRegional = () => '',
-    // função opcional para validar se existe regional selecionada
-    onMissingRegional = null
-  } = opts;
-
-  // Elementos do modal (IDs do seu index atual)
-  const modalId = 'modalAlimentadores';
-  const listEl = document.getElementById('alimListModal');
-  const hintEl = document.getElementById('alimHintModal');
-  const searchEl = document.getElementById('alimSearchModal');
-
-  const btnAll = document.getElementById('btnAlimAllModal');
-  const btnClear = document.getElementById('btnAlimClearModal');
-  const btnApply = document.getElementById('btnConfirmarAlimModal');
-
-  if (!listEl || !hintEl || !btnAll || !btnClear || !btnApply) {
-    console.error('[ALIM-CAT] IDs do modal não encontrados no index.html.');
-    return {
-      open: () => console.warn('[ALIM-CAT] modal não inicializado (IDs faltando).')
-    };
+function normRegional(r) {
+    return String(r || '').trim().toUpperCase();
   }
-
-  // estado local (seleção por alimentador)
-  let selected = new Set(); // set de alimentador (normKey do código)
-  let lastRegional = '';
-
-  function dispatchChanged(regional, mode) {
-    const all = getAllAlimentadoresForRegional(regional);
-    const selectedArr = Array.from(selected);
-
-    // conjuntos selecionados = os que têm pelo menos 1 alim selecionado
-    const conjSet = new Set();
-    const conjList = getConjuntosForRegional(regional);
-    conjList.forEach(conj => {
-      const alims = getAlimentadoresByConjunto(regional, conj);
-      const hasAny = alims.some(a => selected.has(normKey(a)));
-      if (hasAny) conjSet.add(conj);
+  
+  /**
+   * Catálogo: Regional -> Conjunto -> [Alimentadores]
+   * (Conjunto = bloco/cidade, como você pediu)
+   */
+  const CATALOGO = {
+    "NORTE": {
+      "BLOCO INHUÇU": [
+        "INH01I2","INH01I3","INH01I4","INH01I5","INH01I6","INH01I7",
+        "IBP01I1","IBP01I2","IBP01I3","IBP01I4","IBP01I5",
+        "GCN01N1","GCN01N2","GCN01N5"
+      ],
+      "BLOCO TIANGUÁ": [
+        "MCB01M2","MCB01M3","MCB01M4",
+        "VSC01C2","VSC01C3","VSC01C4","VSC01C5",
+        "TNG01S1","TNG01S2","TNG01S3","TNG01S4","TNG01S5","TNG01S6","TNG01S7"
+      ],
+      "BLOCO SOBRAL": [
+        "SBU01S1","SBU01S2","SBU01S3","SBU01S4","SBU01S5","SBU01S6","SBU01S7","SBU01S8","SBU01S9",
+        "SBQ01F2","SBQ01F3","SBQ01F4",
+        "SBC01L1","SBC01L2","SBC01L3","SBC01L4","SBC01L5",
+        "MSP01P1","MSP01P2","MSP01P3","MSP01P4",
+        "CRU01C2","CRU01C3","CRU01C4",
+        "CRE01C2","CRE01C4",
+        "CRC01C1","CRC01C2","CRC01C3","CRC01C4"
+      ],
+      "BLOCO CAMOCIM": [
+        "CMM01C1","CMM01C2","CMM01C3","CMM01C4",
+        "GRJ01N1","GRJ01N2","GRJ01N3","GRJ01N4",
+        "BRQ01F1","BRQ01F2"
+      ]
+    },
+  
+    "ATLANTICO": {
+      "BLOCO ACARAÚ": [
+        "ACA01C1","ACA01C2","ACA01C3","ACA01C4","ACA01CA",
+        "MRC01M1","MRC01M2","MRC01M3","MRC01M4",
+        "CRZ01P1","CRZ01P2","CRZ01P3","CRZ01P4",
+        "ITR01I2","ITR01I3","ITR01I4","ITR01I5"
+      ],
+      "BLOCO ITAPIPOCA": [
+        "ITK01I2","ITK01I3","ITK01I4","ITK01I5","ITK01I6","ITK01I7","ITK01I8",
+        "AMT01P1","AMT01P2","AMT01P3","AMT01P4","AMT01PA",
+        "BLA01L1","BLA01L4","BLA01L5"
+      ],
+      "BLOCO ITAPAJÉ": [
+        "ITE01I1","ITE01I2","ITE01I3","ITE01I4","ITE01I5",
+        "UMR01M1","UMR01M2","UMR01M3",
+        "SLC01S2","SLC01S3","SLC01S5","SLC01S6","SLC01S7",
+        "APR01P3","APR01P4","APR01P5"
+      ],
+      "BLOCO TRAIRI": [
+        "TRR01P1","TRR01P2","TRR01P3","TRR01P4",
+        "PAR01C2","PAR01C3","PAR01C4","PAR01C5","PAR01C6","PAR01C7",
+        "PCU01L2","PCU01L3","PCU01L4","PCU01L5"
+      ]
+    },
+  
+    "CENTRO NORTE": {
+      "CANINDÉ - Canindé": [
+        "CND01C1","CND01C2","CND01C3","CND01C4","CND01C5","CND01C6"
+      ],
+      "CANINDÉ - Inhuporanga": [
+        "INP01N3","INP01N4","INP01N5"
+      ],
+      "CANINDÉ - Boa Viagem": [
+        "BVG01P1","BVG01P2","BVG01P3","BVG01P4"
+      ],
+      "CANINDÉ - Macaoca": [
+        "MCA01L1","MCA01L2","MCA01L3"
+      ],
+  
+      "QUIXADÁ - Banabuiú": [
+        "BNB01Y2"
+      ],
+      "QUIXADÁ - Joatama": [
+        "JTM01N2"
+      ],
+      "QUIXADÁ - Quixadá": [
+        "QXD01P1","QXD01P2","QXD01P3","QXD01P4","QXD01P5","QXD01P6"
+      ],
+      "QUIXADÁ - Quixeramobim": [
+        "QXB01N2","QXB01N3","QXB01N4","QXB01N5","QXB01N6","QXB01N7"
+      ],
+  
+      "NOVA RUSSAS - Ipu": [
+        "IPU01L2","IPU01L3","IPU01L4","IPU01L5"
+      ],
+      "NOVA RUSSAS - Ararendá": [
+        "ARR01L1","ARR01L2","ARR01L3"
+      ],
+      "NOVA RUSSAS - Santa Quitéria": [
+        "SQT01F2","SQT01F3","SQT01F4"
+      ],
+      "NOVA RUSSAS - Araras": [
+        "ARU01Y1","ARU01Y2","ARU01Y4","ARU01Y5","ARU01Y6","ARU01Y7","ARU01Y8"
+      ],
+      "NOVA RUSSAS - Nova Russas": [
+        "NVR01N1","NVR01N2","NVR01N3","NVR01N5"
+      ],
+      "NOVA RUSSAS - Monsenhor Tabosa": [
+        "MTB01S2","MTB01S3","MTB01S4"
+      ],
+  
+      "CRATEÚS - Independência": [
+        "IDP01I1","IDP01I2","IDP01I3","IDP01I4"
+      ],
+      "CRATEÚS - Crateús": [
+        "CAT01C1","CAT01C2","CAT01C3","CAT01C4","CAT01C5","CAT01C6","CAT01C7"
+      ]
+    }
+  };
+  
+  // ===== Exports esperados pelo modal =====
+  
+  export function getCatalogForRegional(regional) {
+    const reg = normRegional(regional);
+    const conjuntosObj = CATALOGO[reg] || {};
+    const conjuntos = Object.keys(conjuntosObj);
+    return { regional: reg, conjuntos };
+  }
+  
+  export function getConjuntosForRegional(regional) {
+    const reg = normRegional(regional);
+    return Object.keys(CATALOGO[reg] || {});
+  }
+  
+  export function getAlimentadoresByConjunto(regional, conjunto) {
+    const reg = normRegional(regional);
+    const conj = String(conjunto || '').trim();
+    const list = (CATALOGO[reg] && CATALOGO[reg][conj]) ? CATALOGO[reg][conj] : [];
+    return Array.isArray(list) ? list.slice() : [];
+  }
+  
+  export function getAllAlimentadoresForRegional(regional) {
+    const reg = normRegional(regional);
+    const conjuntos = CATALOGO[reg] || {};
+    const all = [];
+    Object.keys(conjuntos).forEach(conj => {
+      const arr = conjuntos[conj] || [];
+      arr.forEach(a => all.push(a));
     });
-
-    document.dispatchEvent(
-      new CustomEvent('alimentadores:changed', {
-        detail: {
-          regional,
-          mode, // 'TODOS' | 'CUSTOM' | 'NONE'
-          conjuntos: Array.from(conjSet),
-          alimentadores: mode === 'TODOS' ? all : selectedArr
-        }
-      })
-    );
+    // remove duplicados
+    return Array.from(new Set(all));
   }
-
-  function renderHint(regional) {
-    const all = getAllAlimentadoresForRegional(regional);
-    const total = all.length;
-
-    if (!total) {
-      hintEl.innerHTML = `Catálogo: <b>0</b>`;
-      return;
-    }
-
-    if (selected.size === total) {
-      hintEl.innerHTML = `Modo: <b>TODOS</b> • Catálogo: <b>${total}</b>`;
-      return;
-    }
-
-    if (selected.size > 0) {
-      hintEl.innerHTML = `Selecionados: <b>${selected.size}</b> • Catálogo: <b>${total}</b>`;
-      return;
-    }
-
-    hintEl.innerHTML = `Escolha <b>TODOS</b> ou selecione <b>1+</b> alimentadores.`;
-  }
-
-  function matchesSearch(text, term) {
-    if (!term) return true;
-    return normKey(text).includes(normKey(term));
-  }
-
-  function renderList(regional) {
-    listEl.innerHTML = '';
-
-    const conjuntos = getConjuntosForRegional(regional);
-    if (!conjuntos.length) {
-      listEl.innerHTML = `<div style="padding:12px; color:#666; font-weight:800;">Catálogo não encontrado para esta regional.</div>`;
-      renderHint(regional);
-      return;
-    }
-
-    const term = String(searchEl?.value || '').trim();
-
-    conjuntos.forEach(conj => {
-      const alims = getAlimentadoresByConjunto(regional, conj);
-      if (!alims.length) return;
-
-      // filtro por busca: se nenhum alim do bloco bater, esconde o bloco inteiro
-      const anyVisible = alims.some(a => matchesSearch(`${conj} ${a}`, term));
-      if (!anyVisible) return;
-
-      const block = document.createElement('div');
-      block.className = 'alim-block';
-      block.style.border = '1px solid rgba(0,0,0,0.08)';
-      block.style.borderRadius = '12px';
-      block.style.padding = '10px';
-      block.style.background = 'rgba(255,255,255,0.92)';
-
-      const title = document.createElement('div');
-      title.style.fontWeight = '900';
-      title.style.marginBottom = '8px';
-      title.style.display = 'flex';
-      title.style.alignItems = 'center';
-      title.style.gap = '8px';
-      title.innerHTML = `📍 <span>${conj}</span>`;
-
-      const grid = document.createElement('div');
-      grid.style.display = 'grid';
-      grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(120px, 1fr))';
-      grid.style.gap = '8px';
-
-      alims.forEach(a => {
-        if (!matchesSearch(`${conj} ${a}`, term)) return;
-
-        const key = normKey(a);
-        const checked = selected.has(key);
-
-        const chip = document.createElement('label');
-        chip.className = 'alim-chip';
-        chip.style.display = 'flex';
-        chip.style.alignItems = 'center';
-        chip.style.justifyContent = 'space-between';
-        chip.style.padding = '8px 10px';
-        chip.style.borderRadius = '10px';
-        chip.style.border = checked ? '2px solid #0A4A8C' : '1px solid rgba(0,0,0,0.12)';
-        chip.style.background = checked ? 'rgba(10,74,140,0.10)' : '#fff';
-        chip.style.cursor = 'pointer';
-        chip.style.fontWeight = '900';
-
-        chip.innerHTML = `
-          <span style="display:flex; align-items:center; gap:8px;">
-            <input type="checkbox" ${checked ? 'checked' : ''} style="transform:scale(1.05);" />
-            <span>${a}</span>
-          </span>
-        `;
-
-        const input = chip.querySelector('input');
-
-        input.onchange = () => {
-          if (input.checked) selected.add(key);
-          else selected.delete(key);
-
-          // revalida “TODOS” visualmente (se marcar tudo)
-          renderHint(regional);
-        };
-
-        chip.onclick = (e) => {
-          // permitir clicar no chip inteiro
-          if (e.target?.tagName?.toLowerCase() === 'input') return;
-          input.checked = !input.checked;
-          input.dispatchEvent(new Event('change'));
-        };
-
-        grid.appendChild(chip);
-      });
-
-      block.appendChild(title);
-      block.appendChild(grid);
-      listEl.appendChild(block);
-    });
-
-    renderHint(regional);
-  }
-
-  function open() {
-    const regional = String(getSelectedRegional() || '').trim().toUpperCase();
-
-    if (!regional) {
-      if (typeof onMissingRegional === 'function') onMissingRegional();
-      else console.warn('[ALIM-CAT] Nenhuma regional selecionada.');
-      return;
-    }
-
-    const catalog = getCatalogForRegional(regional);
-    if (!catalog || !catalog.conjuntos || !catalog.conjuntos.length) {
-      listEl.innerHTML = `<div style="padding:12px; color:#666; font-weight:800;">Catálogo não encontrado para ${regional}.</div>`;
-      hintEl.innerHTML = '';
-      openModal(modalId);
-      return;
-    }
-
-    // ao trocar regional, limpa seleção (pra evitar “vazar”)
-    if (regional !== lastRegional) {
-      selected = new Set();
-      lastRegional = regional;
-      if (searchEl) searchEl.value = '';
-    }
-
-    renderList(regional);
-    openModal(modalId);
-  }
-
-  // ====== eventos do modal ======
-  btnAll.onclick = (e) => {
-    e.preventDefault();
-    const regional = String(getSelectedRegional() || '').trim().toUpperCase();
-    if (!regional) return;
-
-    const all = getAllAlimentadoresForRegional(regional);
-    selected = new Set(all.map(normKey));
-
-    renderList(regional);
-    dispatchChanged(regional, 'TODOS');
-    closeModal(modalId);
-  };
-
-  btnClear.onclick = (e) => {
-    e.preventDefault();
-    const regional = String(getSelectedRegional() || '').trim().toUpperCase();
-    if (!regional) return;
-
-    selected = new Set();
-    renderList(regional);
-  };
-
-  if (searchEl) {
-    searchEl.oninput = () => {
-      const regional = String(getSelectedRegional() || '').trim().toUpperCase();
-      if (!regional) return;
-      renderList(regional);
-    };
-  }
-
-  btnApply.onclick = (e) => {
-    e.preventDefault();
-    const regional = String(getSelectedRegional() || '').trim().toUpperCase();
-    if (!regional) return;
-
-    const all = getAllAlimentadoresForRegional(regional);
-    const total = all.length;
-
-    // regra: 1+ ou TODOS (tudo marcado)
-    if (selected.size === 0) {
-      // mantém aberto, só avisa via hint (se quiser toast, faz no main ao ouvir o evento)
-      renderHint(regional);
-      return;
-    }
-
-    const mode = selected.size === total ? 'TODOS' : 'CUSTOM';
-    dispatchChanged(regional, mode);
-    closeModal(modalId);
-  };
-
-  // retorno para o main usar
-  return { open };
-}
+  
