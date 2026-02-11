@@ -135,7 +135,7 @@ const cache = {
 const ESTR_FILES = {
   'ATLANTICO': { type: 'kmz', path: 'assets/estruturas/atlanticoestrutura.kmz' },
   'NORTE': { type: 'kmz', path: 'assets/estruturas/norteestrutura.kmz' },
-  'CENTRO NORTE': { type: 'kmz', path: 'assets/estruturas/centro_norte_estrutura.kmz' } // se você tiver
+  'CENTRO NORTE': { type: 'kmz', path: 'assets/estruturas/centronorteestrutura.kmz' },
 };
 
 async function loadKmlTextFromFile(cfg) {
