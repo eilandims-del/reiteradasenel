@@ -1,12 +1,12 @@
 // =========================
 // FILE: js/components/modal-alimentadores-catalog.js
 // =========================
-
 import { openModal, closeModal } from './modal.js';
 import {
   getCatalogForRegional,
-  getConjuntosForRegional,
-  getAlimentadoresByConjunto,
+  getBlocosForRegional,
+  getMunicipiosForBloco,
+  getAlimentadoresByMunicipio,
   getAllAlimentadoresForRegional
 } from '../services/alimentadores-catalog.js';
 
@@ -23,13 +23,13 @@ function normKey(v) {
 }
 
 /**
- * ✅ Setup do modal de catálogo de alimentadores (por Conjunto)
- * - Compatível com seu index.html atual:
- *   modalAlimentadores, alimListModal, alimHintModal, alimSearchModal,
- *   btnAlimAllModal, btnAlimClearModal, btnConfirmarAlimModal
+ * ✅ Modal: Regional -> Bloco -> Município -> Alimentadores
+ * IDs (index.html):
+ *  modalAlimentadores, alimListModal, alimHintModal, alimSearchModal,
+ *  btnAlimAllModal, btnAlimClearModal, btnConfirmarAlimModal
  *
- * - Dispara evento:
- *   document.dispatchEvent(new CustomEvent('alimentadores:changed', { detail: {...} }))
+ * Dispara:
+ *  alimentadores:changed { regional, mode, blocos, municipios, alimentadores }
  */
 export function setupAlimentadoresCatalogModal(opts = {}) {
   const {
@@ -51,31 +51,12 @@ export function setupAlimentadoresCatalogModal(opts = {}) {
     return { open: () => console.warn('[ALIM-CAT] modal não inicializado (IDs faltando).') };
   }
 
-  let selected = new Set();   // normKey(alimentador)
+  let selected = new Set(); // normKey(alimentador)
   let lastRegional = '';
 
-  function dispatchChanged(regional, mode) {
-    const all = getAllAlimentadoresForRegional(regional);
-    const selectedArr = Array.from(selected);
-
-    // conjuntos selecionados = os que têm pelo menos 1 alim selecionado
-    const conjSet = new Set();
-    const conjList = getConjuntosForRegional(regional);
-    conjList.forEach(conj => {
-      const alims = getAlimentadoresByConjunto(regional, conj);
-      if (alims.some(a => selected.has(normKey(a)))) conjSet.add(conj);
-    });
-
-    document.dispatchEvent(
-      new CustomEvent('alimentadores:changed', {
-        detail: {
-          regional,
-          mode, // 'TODOS' | 'CUSTOM'
-          conjuntos: Array.from(conjSet),
-          alimentadores: mode === 'TODOS' ? all : selectedArr
-        }
-      })
-    );
+  function matchesSearch(text, term) {
+    if (!term) return true;
+    return normKey(text).includes(normKey(term));
   }
 
   function renderHint(regional) {
@@ -100,125 +81,210 @@ export function setupAlimentadoresCatalogModal(opts = {}) {
     hintEl.innerHTML = `Escolha <b>TODOS</b> ou selecione <b>1+</b> alimentadores.`;
   }
 
-  function matchesSearch(text, term) {
-    if (!term) return true;
-    return normKey(text).includes(normKey(term));
+  function dispatchChanged(regional, mode) {
+    const all = getAllAlimentadoresForRegional(regional);
+
+    const blocosSelecionados = new Set();
+    const municipiosSelecionados = new Set();
+
+    getBlocosForRegional(regional).forEach(bl => {
+      const municipios = getMunicipiosForBloco(regional, bl);
+      municipios.forEach(m => {
+        const alims = getAlimentadoresByMunicipio(regional, bl, m);
+        const hasAny = alims.some(a => selected.has(normKey(a)));
+        if (hasAny) {
+          blocosSelecionados.add(bl);
+          municipiosSelecionados.add(m);
+        }
+      });
+    });
+
+    document.dispatchEvent(
+      new CustomEvent('alimentadores:changed', {
+        detail: {
+          regional,
+          mode, // 'TODOS' | 'CUSTOM'
+          blocos: Array.from(blocosSelecionados),
+          municipios: Array.from(municipiosSelecionados),
+          alimentadores: mode === 'TODOS' ? all : Array.from(selected)
+        }
+      })
+    );
   }
 
   function renderList(regional) {
     listEl.innerHTML = '';
 
     const catalog = getCatalogForRegional(regional);
-    const conjuntos = (catalog && Array.isArray(catalog.conjuntos)) ? catalog.conjuntos : [];
+    const blocos = (catalog && Array.isArray(catalog.blocos)) ? catalog.blocos : [];
 
-    if (!conjuntos.length) {
-      listEl.innerHTML = `<div style="padding:12px; color:#666; font-weight:800;">Catálogo não encontrado para esta regional.</div>`;
+    if (!blocos.length) {
+      listEl.innerHTML =
+        `<div style="padding:12px; color:#666; font-weight:800;">Catálogo não encontrado para esta regional.</div>`;
       renderHint(regional);
       return;
     }
 
     const term = String(searchEl?.value || '').trim();
 
-    conjuntos.forEach(conj => {
-      const alims = getAlimentadoresByConjunto(regional, conj);
-      if (!alims.length) return;
+    blocos.forEach(bloco => {
+      const municipios = getMunicipiosForBloco(regional, bloco);
+      if (!municipios.length) return;
 
-      const anyVisible = alims.some(a => matchesSearch(`${conj} ${a}`, term));
-      if (!anyVisible) return;
+      // se nada do bloco passa na busca, não mostra o bloco
+      const anyBlockVisible = municipios.some(m => {
+        const alims = getAlimentadoresByMunicipio(regional, bloco, m);
+        return alims.some(a => matchesSearch(`${bloco} ${m} ${a}`, term));
+      });
+      if (!anyBlockVisible) return;
 
-      const block = document.createElement('div');
-      block.className = 'alim-block';
-      block.style.border = '1px solid rgba(0,0,0,0.08)';
-      block.style.borderRadius = '12px';
-      block.style.padding = '10px';
-      block.style.background = 'rgba(255,255,255,0.92)';
-      block.style.marginTop = '10px';
+      // ---- Card do Bloco ----
+      const card = document.createElement('div');
+      card.style.border = '1px solid rgba(0,0,0,0.10)';
+      card.style.borderRadius = '14px';
+      card.style.padding = '12px';
+      card.style.background = 'rgba(255,255,255,0.95)';
+      card.style.marginTop = '12px';
 
-      // header do conjunto + checkbox "selecionar tudo do conjunto"
-      const header = document.createElement('div');
-      header.style.display = 'flex';
-      header.style.alignItems = 'center';
-      header.style.justifyContent = 'space-between';
-      header.style.gap = '10px';
-      header.style.marginBottom = '8px';
+      const blocoHeader = document.createElement('div');
+      blocoHeader.style.display = 'flex';
+      blocoHeader.style.alignItems = 'center';
+      blocoHeader.style.justifyContent = 'space-between';
+      blocoHeader.style.gap = '10px';
 
-      const left = document.createElement('div');
-      left.style.display = 'flex';
-      left.style.alignItems = 'center';
-      left.style.gap = '8px';
-      left.innerHTML = `📍 <strong>${conj}</strong>`;
+      const blocoTitle = document.createElement('div');
+      blocoTitle.style.fontWeight = '950';
+      blocoTitle.style.fontSize = '0.95rem';
+      blocoTitle.innerHTML = `🔷 <span>${bloco}</span>`;
 
-      const conjToggle = document.createElement('input');
-      conjToggle.type = 'checkbox';
+      // checkbox: selecionar tudo do bloco
+      const blocoToggle = document.createElement('input');
+      blocoToggle.type = 'checkbox';
 
-      const allInConjSelected = alims.every(a => selected.has(normKey(a)));
-      conjToggle.checked = allInConjSelected;
+      const allBlocoAlims = [];
+      municipios.forEach(m => {
+        getAlimentadoresByMunicipio(regional, bloco, m).forEach(a => allBlocoAlims.push(a));
+      });
+      const allBlocoSelected = allBlocoAlims.length > 0 && allBlocoAlims.every(a => selected.has(normKey(a)));
+      blocoToggle.checked = allBlocoSelected;
 
-      conjToggle.onchange = () => {
-        if (conjToggle.checked) {
-          alims.forEach(a => selected.add(normKey(a)));
+      blocoToggle.onchange = () => {
+        if (blocoToggle.checked) {
+          allBlocoAlims.forEach(a => selected.add(normKey(a)));
         } else {
-          alims.forEach(a => selected.delete(normKey(a)));
+          allBlocoAlims.forEach(a => selected.delete(normKey(a)));
         }
         renderList(regional);
       };
 
-      header.appendChild(left);
-      header.appendChild(conjToggle);
+      blocoHeader.appendChild(blocoTitle);
+      blocoHeader.appendChild(blocoToggle);
+      card.appendChild(blocoHeader);
 
-      // grid dos alimentadores
-      const grid = document.createElement('div');
-      grid.style.display = 'grid';
-      grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(120px, 1fr))';
-      grid.style.gap = '8px';
+      // ---- Municípios ----
+      municipios.forEach(municipio => {
+        const alims = getAlimentadoresByMunicipio(regional, bloco, municipio);
+        if (!alims.length) return;
 
-      alims.forEach(a => {
-        if (!matchesSearch(`${conj} ${a}`, term)) return;
+        const anyMunicipioVisible = alims.some(a => matchesSearch(`${bloco} ${municipio} ${a}`, term));
+        if (!anyMunicipioVisible) return;
 
-        const key = normKey(a);
-        const checked = selected.has(key);
+        const muniWrap = document.createElement('div');
+        muniWrap.style.marginTop = '12px';
 
-        const chip = document.createElement('label');
-        chip.className = 'alim-chip';
-        chip.style.display = 'flex';
-        chip.style.alignItems = 'center';
-        chip.style.justifyContent = 'space-between';
-        chip.style.padding = '8px 10px';
-        chip.style.borderRadius = '10px';
-        chip.style.border = checked ? '2px solid #0A4A8C' : '1px solid rgba(0,0,0,0.12)';
-        chip.style.background = checked ? 'rgba(10,74,140,0.10)' : '#fff';
-        chip.style.cursor = 'pointer';
-        chip.style.fontWeight = '900';
+        const muniTitle = document.createElement('div');
+        muniTitle.style.fontWeight = '900';
+        muniTitle.style.color = 'var(--medium-gray)';
+        muniTitle.style.marginBottom = '8px';
+        muniTitle.innerHTML = `📍 <span>${municipio}</span>`;
+        muniWrap.appendChild(muniTitle);
 
-        chip.innerHTML = `
-          <span style="display:flex; align-items:center; gap:8px;">
-            <input type="checkbox" ${checked ? 'checked' : ''} style="transform:scale(1.05);" />
-            <span>${a}</span>
-          </span>
-        `;
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(120px, 1fr))';
+        grid.style.gap = '8px';
 
-        const input = chip.querySelector('input');
+        // checkbox: selecionar tudo do município
+        // (fica no topo da grid como "chip" especial)
+        const muniAllChip = document.createElement('label');
+        muniAllChip.style.display = 'flex';
+        muniAllChip.style.alignItems = 'center';
+        muniAllChip.style.justifyContent = 'space-between';
+        muniAllChip.style.padding = '8px 10px';
+        muniAllChip.style.borderRadius = '10px';
+        muniAllChip.style.border = '1px dashed rgba(0,0,0,0.25)';
+        muniAllChip.style.background = 'rgba(0,0,0,0.03)';
+        muniAllChip.style.cursor = 'pointer';
+        muniAllChip.style.fontWeight = '900';
+        muniAllChip.innerHTML = `<span>Selecionar ${municipio}</span>`;
 
-        input.onchange = () => {
-          if (input.checked) selected.add(key);
-          else selected.delete(key);
-          renderHint(regional);
-          // atualiza o checkbox do conjunto sem rerender total
-          conjToggle.checked = alims.every(x => selected.has(normKey(x)));
+        const muniToggle = document.createElement('input');
+        muniToggle.type = 'checkbox';
+        muniToggle.style.transform = 'scale(1.05)';
+
+        const allMuniSelected = alims.every(a => selected.has(normKey(a)));
+        muniToggle.checked = allMuniSelected;
+
+        muniToggle.onchange = () => {
+          if (muniToggle.checked) alims.forEach(a => selected.add(normKey(a)));
+          else alims.forEach(a => selected.delete(normKey(a)));
+          renderList(regional);
         };
 
-        chip.onclick = (e) => {
-          if (e.target?.tagName?.toLowerCase() === 'input') return;
-          input.checked = !input.checked;
-          input.dispatchEvent(new Event('change'));
-        };
+        muniAllChip.appendChild(muniToggle);
+        grid.appendChild(muniAllChip);
 
-        grid.appendChild(chip);
+        alims.forEach(a => {
+          if (!matchesSearch(`${bloco} ${municipio} ${a}`, term)) return;
+
+          const key = normKey(a);
+          const checked = selected.has(key);
+
+          const chip = document.createElement('label');
+          chip.className = 'alim-chip';
+          chip.style.display = 'flex';
+          chip.style.alignItems = 'center';
+          chip.style.justifyContent = 'space-between';
+          chip.style.padding = '8px 10px';
+          chip.style.borderRadius = '10px';
+          chip.style.border = checked ? '2px solid #0A4A8C' : '1px solid rgba(0,0,0,0.12)';
+          chip.style.background = checked ? 'rgba(10,74,140,0.10)' : '#fff';
+          chip.style.cursor = 'pointer';
+          chip.style.fontWeight = '900';
+
+          chip.innerHTML = `
+            <span style="display:flex; align-items:center; gap:8px;">
+              <input type="checkbox" ${checked ? 'checked' : ''} style="transform:scale(1.05);" />
+              <span>${a}</span>
+            </span>
+          `;
+
+          const input = chip.querySelector('input');
+
+          input.onchange = () => {
+            if (input.checked) selected.add(key);
+            else selected.delete(key);
+            renderHint(regional);
+            // atualiza toggles sem rerender parcial (força rerender total por consistência)
+            // (simples e seguro)
+            // blocoToggle/muniToggle recalculam no renderList
+          };
+
+          chip.onclick = (e) => {
+            if (e.target?.tagName?.toLowerCase() === 'input') return;
+            input.checked = !input.checked;
+            input.dispatchEvent(new Event('change'));
+            renderList(regional);
+          };
+
+          grid.appendChild(chip);
+        });
+
+        muniWrap.appendChild(grid);
+        card.appendChild(muniWrap);
       });
 
-      block.appendChild(header);
-      block.appendChild(grid);
-      listEl.appendChild(block);
+      listEl.appendChild(card);
     });
 
     renderHint(regional);
@@ -234,13 +300,15 @@ export function setupAlimentadoresCatalogModal(opts = {}) {
     }
 
     const catalog = getCatalogForRegional(regional);
-    if (!catalog || !Array.isArray(catalog.conjuntos) || !catalog.conjuntos.length) {
-      listEl.innerHTML = `<div style="padding:12px; color:#666; font-weight:800;">Catálogo não encontrado para ${regional}.</div>`;
+    if (!catalog || !Array.isArray(catalog.blocos) || !catalog.blocos.length) {
+      listEl.innerHTML =
+        `<div style="padding:12px; color:#666; font-weight:800;">Catálogo não encontrado para ${regional}.</div>`;
       hintEl.innerHTML = '';
       openModal(modalId);
       return;
     }
 
+    // ao trocar regional, zera seleção (não vaza)
     if (regional !== lastRegional) {
       selected = new Set();
       lastRegional = regional;
