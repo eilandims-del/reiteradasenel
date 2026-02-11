@@ -6,7 +6,7 @@
  *
  * Fluxo:
  * 1) Seleciona Regional  -> abre Modal de Alimentadores (obrigatório escolher)
- * 2) Seleciona Alimentadores (ou "TODOS") (modal agrupado por Conjunto)
+ * 2) Seleciona Alimentadores (ou "TODOS") OU escolhe Conjuntos (que expande alimentadores)
  * 3) Seleciona período (data inicial/final) e clica em Aplicar
  */
 
@@ -36,9 +36,14 @@ import {
 
 import { copyToClipboard, showToast, debounce } from './utils/helpers.js';
 
-// ✅ Modal novo (já existe no seu ZIP): ele AGRUPA por conjunto e devolve lista final de alimentadores
+// ✅ NOVO modal (Regional -> Conjunto -> Alimentadores)
+// ⚠️ CORREÇÃO: o arquivo exporta "openAlimentadoresCatalogModal"
 import { openAlimentadoresCatalogModal } from './components/modal-alimentadores-catalog.js';
-import { getAllAlimentadoresRegional } from './services/alimentadores-catalog.js';
+
+import {
+  getAllAlimentadoresRegional,
+  getAlimentadoresByConjunto
+} from './services/alimentadores-catalog.js';
 
 let currentData = [];
 let selectedAdditionalColumns = [];
@@ -46,22 +51,77 @@ let selectedAdditionalColumns = [];
 // ✅ Regional selecionada
 let selectedRegional = ''; // 'ATLANTICO' | 'NORTE' | 'CENTRO NORTE'
 
-// ✅ alimentadores efetivos usados no filtro (Set(normKey(alimentador)))
+// ✅ seleção do modal
+// mode: 'NONE' | 'ALL' | 'CUSTOM'
+let alimSelection = {
+  mode: 'NONE',
+  regional: '',
+  conjuntos: [],
+  alimentadores: []
+};
+
+// ✅ alimentadores efetivos usados no filtro (já EXPANDIDOS)
+// (Set(normKey(alimentador)))
 let selectedAlimentadores = new Set();
+
+/* =========================
+   Modal catálogo (instância)
+========================= */
+const alimModal = openAlimentadoresCatalogModal({
+  getSelectedRegional: () => selectedRegional,
+  onMissingRegional: () => showToast('Selecione uma Regional primeiro.', 'error')
+});
+
+// Badge abre modal
+document.getElementById('badgeOpenAlimentadores')?.addEventListener('click', () => {
+  alimModal.open();
+});
 
 /* =========================
    Alimentadores (catálogo)
 ========================= */
-
 function getCatalogForSelectedRegional() {
   if (!selectedRegional) return [];
   return getAllAlimentadoresRegional(selectedRegional);
 }
 
-function isAllAlimentadoresSelected() {
-  const catalog = getCatalogForSelectedRegional();
-  if (!catalog.length) return false;
-  return selectedAlimentadores.size === catalog.length;
+function rebuildSelectedAlimentadoresFromSelection() {
+  selectedAlimentadores = new Set();
+
+  if (!selectedRegional) return;
+
+  if (alimSelection.mode === 'ALL') {
+    // ALL => catálogo inteiro
+    const catalog = getCatalogForSelectedRegional();
+    catalog.forEach(a => selectedAlimentadores.add(normKey(a)));
+    return;
+  }
+
+  if (alimSelection.mode !== 'CUSTOM') return;
+
+  // CUSTOM => junta:
+  // 1) alimentadores marcados
+  // 2) conjuntos marcados (expande conjuntos -> alimentadores)
+  const reg = selectedRegional;
+  const acc = new Set();
+
+  (alimSelection.alimentadores || []).forEach(a => {
+    const k = normKey(a);
+    if (k) acc.add(k);
+  });
+
+  const conjuntos = Array.isArray(alimSelection.conjuntos) ? alimSelection.conjuntos : [];
+  if (conjuntos.length) {
+    conjuntos.forEach(conj => {
+      const alims = getAlimentadoresByConjunto(reg, conj) || [];
+      alims.forEach(a => {
+        const k = normKey(a);
+        if (k) acc.add(k);
+      });
+    });
+  }
+
+  selectedAlimentadores = acc;
 }
 
 function validateAlimentadoresSelection(silent = false) {
@@ -76,9 +136,19 @@ function validateAlimentadoresSelection(silent = false) {
     return false;
   }
 
-  if (selectedAlimentadores.size > 0) return true;
+  if (alimSelection.mode === 'ALL') return true;
 
-  if (!silent) showToast('Selecione TODOS ou pelo menos 1 alimentador.', 'error');
+  if (alimSelection.mode === 'CUSTOM') {
+    const hasConj = Array.isArray(alimSelection.conjuntos) && alimSelection.conjuntos.length > 0;
+    const hasAlim = Array.isArray(alimSelection.alimentadores) && alimSelection.alimentadores.length > 0;
+
+    if (hasConj || hasAlim) return true;
+
+    if (!silent) showToast('Selecione TODOS, ou 1+ conjunto, ou 1+ alimentador.', 'error');
+    return false;
+  }
+
+  if (!silent) showToast('Escolha TODOS ou selecione 1+ conjunto/alimentador.', 'error');
   return false;
 }
 
@@ -101,13 +171,15 @@ function updateAlimentadoresBadge() {
     return;
   }
 
-  if (isAllAlimentadoresSelected()) {
+  if (alimSelection.mode === 'ALL') {
     setBadge('Alimentadores: TODOS');
     return;
   }
 
-  if (selectedAlimentadores.size > 0) {
-    setBadge(`Alimentadores: ${selectedAlimentadores.size}`);
+  if (alimSelection.mode === 'CUSTOM') {
+    const qtd = selectedAlimentadores.size;
+    if (qtd > 0) setBadge(`Alimentadores: ${qtd}`);
+    else setBadge('Alimentadores: (selecionar)');
     return;
   }
 
@@ -115,10 +187,15 @@ function updateAlimentadoresBadge() {
 }
 
 function alimentadorFilterActive() {
-  // Só filtra quando tiver subconjunto
+  // só filtra se CUSTOM com subconjunto
   if (!selectedRegional) return false;
+  if (alimSelection.mode !== 'CUSTOM') return false;
   if (selectedAlimentadores.size === 0) return false;
-  if (isAllAlimentadoresSelected()) return false;
+
+  // se selecionou tudo (por conjunto + tudo), não filtra
+  const catalog = getCatalogForSelectedRegional();
+  if (catalog.length && selectedAlimentadores.size === catalog.length) return false;
+
   return true;
 }
 
@@ -137,25 +214,6 @@ function getDataWithAlimentadorFilter(data) {
   });
 }
 
-function openAlimentadoresModalForSelectedRegional() {
-  if (!selectedRegional) {
-    showToast('Selecione uma Regional primeiro.', 'error');
-    return;
-  }
-
-  const catalog = getCatalogForSelectedRegional();
-  if (!catalog.length) {
-    showToast('Catálogo de alimentadores não encontrado para esta regional.', 'error');
-    return;
-  }
-
-  // O modal espera strings (já “norm”), mas ele próprio faz norm() internamente.
-  openAlimentadoresCatalogModal(
-    selectedRegional,
-    Array.from(selectedAlimentadores) // já está em normKey
-  );
-}
-
 /**
  * Inicializar aplicação
  */
@@ -170,20 +228,23 @@ async function init() {
   resetMap();
   updateHeatmap([]);
 
-  // ✅ Recebe seleção do modal (evento disparado pelo modal-alimentadores-catalog.js do seu ZIP)
+  // ✅ recebe seleção do modal
   document.addEventListener('alimentadores:changed', async (e) => {
     const sel = e?.detail || {};
-    const alims = Array.isArray(sel.alimentadores) ? sel.alimentadores : [];
 
-    // guarda sempre em Set(normKey)
-    selectedAlimentadores = new Set(alims.map(a => normKey(a)).filter(Boolean));
+    alimSelection = {
+      mode: sel.mode === 'ALL' ? 'ALL' : 'CUSTOM',
+      regional: sel.regional || selectedRegional,
+      conjuntos: Array.isArray(sel.conjuntos) ? sel.conjuntos : [],
+      alimentadores: Array.isArray(sel.alimentadores) ? sel.alimentadores : []
+    };
 
+    rebuildSelectedAlimentadoresFromSelection();
     updateAlimentadoresBadge();
 
-    // se já tiver data, aplica (recarrega do Firestore)
+    // se já tiver data, aplica
     const di = document.getElementById('dataInicial')?.value || '';
     const df = document.getElementById('dataFinal')?.value || '';
-
     if (di || df) {
       await applyFiltersDebounced();
     } else if (currentData.length) {
@@ -277,12 +338,7 @@ function initEventListeners() {
   document.getElementById('aplicarFiltro')?.addEventListener('click', applyFiltersDebounced);
   document.getElementById('limparFiltro')?.addEventListener('click', clearFilters);
 
-  // ✅ Badge abre modal
-  document.getElementById('badgeOpenAlimentadores')?.addEventListener('click', () => {
-    openAlimentadoresModalForSelectedRegional();
-  });
-
-  // ✅ Regional -> reseta + abre modal (obrigatório escolher)
+  // ✅ Regional -> abre modal alimentadores (obrigatório escolher)
   document.getElementById('btnRegionalAtlantico')?.addEventListener('click', async () => {
     setRegionalUI('ATLANTICO');
     setMapRegional('ATLANTICO');
@@ -290,11 +346,14 @@ function initEventListeners() {
     currentData = [];
     selectedAdditionalColumns = [];
 
+    // reset seleção
+    alimSelection = { mode: 'NONE', regional: 'ATLANTICO', conjuntos: [], alimentadores: [] };
     selectedAlimentadores = new Set();
-    renderEmptyState();
 
-    showToast('Regional selecionada: ATLANTICO. Selecione alimentadores (obrigatório) e depois o período.', 'success');
-    openAlimentadoresModalForSelectedRegional();
+    renderEmptyState();
+    showToast('Regional selecionada: ATLANTICO. Selecione conjuntos/alimentadores e depois o período.', 'success');
+
+    document.getElementById('badgeOpenAlimentadores')?.click();
   });
 
   document.getElementById('btnRegionalNorte')?.addEventListener('click', async () => {
@@ -304,11 +363,13 @@ function initEventListeners() {
     currentData = [];
     selectedAdditionalColumns = [];
 
+    alimSelection = { mode: 'NONE', regional: 'NORTE', conjuntos: [], alimentadores: [] };
     selectedAlimentadores = new Set();
-    renderEmptyState();
 
-    showToast('Regional selecionada: NORTE. Selecione alimentadores (obrigatório) e depois o período.', 'success');
-    openAlimentadoresModalForSelectedRegional();
+    renderEmptyState();
+    showToast('Regional selecionada: NORTE. Selecione conjuntos/alimentadores e depois o período.', 'success');
+
+    document.getElementById('badgeOpenAlimentadores')?.click();
   });
 
   document.getElementById('btnRegionalCentroNorte')?.addEventListener('click', async () => {
@@ -318,11 +379,13 @@ function initEventListeners() {
     currentData = [];
     selectedAdditionalColumns = [];
 
+    alimSelection = { mode: 'NONE', regional: 'CENTRO NORTE', conjuntos: [], alimentadores: [] };
     selectedAlimentadores = new Set();
-    renderEmptyState();
 
-    showToast('Regional selecionada: CENTRO NORTE. Selecione alimentadores (obrigatório) e depois o período.', 'success');
-    openAlimentadoresModalForSelectedRegional();
+    renderEmptyState();
+    showToast('Regional selecionada: CENTRO NORTE. Selecione conjuntos/alimentadores e depois o período.', 'success');
+
+    document.getElementById('badgeOpenAlimentadores')?.click();
   });
 
   // Copiar ranking
@@ -418,12 +481,12 @@ async function loadDataByPeriod(di, df) {
     if (!base.length) {
       if (rankingContainer) {
         rankingContainer.innerHTML =
-          '<p style="text-align: center; padding: 2rem; color: var(--medium-gray);">Nenhuma reiterada encontrada para os alimentadores selecionados neste período.</p>';
+          '<p style="text-align: center; padding: 2rem; color: var(--medium-gray);">Nenhuma reiterada encontrada para os conjuntos/alimentadores selecionados neste período.</p>';
       }
       updateRanking([]);
       updateCharts([]);
       updateHeatmap([]);
-      showToast('Sem reiteradas para os alimentadores selecionados no período.', 'error');
+      showToast('Sem reiteradas para os conjuntos/alimentadores selecionados no período.', 'error');
       return;
     }
 
@@ -432,7 +495,6 @@ async function loadDataByPeriod(di, df) {
     return;
   }
 
-  // fallback
   currentData = [];
   if (rankingContainer) {
     rankingContainer.innerHTML =
@@ -459,8 +521,11 @@ const applyFiltersDebounced = debounce(async () => {
     return;
   }
 
-  // ✅ exige escolha de alimentadores
+  // ✅ exige escolha de alimentadores/conjuntos
   if (!validateAlimentadoresSelection(false)) return;
+
+  // reconstrói set efetivo antes de aplicar filtro
+  rebuildSelectedAlimentadoresFromSelection();
 
   if (!di && !df) {
     showToast('Informe ao menos uma data (inicial ou final) para carregar.', 'error');
@@ -489,7 +554,8 @@ function clearFilters() {
   setElementoSearch('');
   setElementoFilter('TODOS');
 
-  // reseta seleção (volta a exigir escolher)
+  // reset seleção alimentadores (volta a exigir escolher)
+  alimSelection = { mode: 'NONE', regional: selectedRegional, conjuntos: [], alimentadores: [] };
   selectedAlimentadores = new Set();
 
   renderEmptyState();
@@ -507,7 +573,6 @@ function openModalAddInfo() {
 
   const nonFixedColumns = allColumns.filter(col => {
     const normalized = String(col).toUpperCase().trim().replace(/\./g, '');
-
     if (fixedColumns.includes(normalized)) return false;
 
     const normalizedNoDot = normalized.replace(/\./g, '');
