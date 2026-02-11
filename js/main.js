@@ -471,6 +471,7 @@ async function init() {
     getSelectedRegional: () => selectedRegional,
     onMissingRegional: () => showToast('Selecione uma Regional primeiro.', 'error')
   });
+ 
 
   // Badge abre modal
   document.getElementById('badgeOpenAlimentadores')?.addEventListener('click', () => {
