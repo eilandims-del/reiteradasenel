@@ -3,6 +3,7 @@
 // =========================
 import { generateHeatmapByConjunto } from '../services/data-service.js';
 import { loadEstruturasRegionalOnce } from '../services/estruturas-service.js';
+import { normKey, extractElementoCode, extractAlimBaseFlex } from '../utils/estruturas-utils.js';
 
 let map;
 
@@ -37,7 +38,6 @@ let alimentadorCenters = {};
 let alimentadorLines = {};
 
 // ====== REGIONAIS (KML/KMZ) ======
-// ⚠️ Aqui é APENAS limite/polígono (para desenhar borda / filtrar pontos).
 const REGION_FILES = {
   'TODOS': null,
   'CENTRO NORTE': { type: 'kml', path: 'assets/doc.kml' },
@@ -58,18 +58,6 @@ function decimateLatLngs(latlngs, step = 3) {
   const last = latlngs[latlngs.length - 1];
   if (out[out.length - 1] !== last) out.push(last);
   return out;
-}
-
-function normKey(v) {
-  return String(v ?? '')
-    .trim()
-    .toUpperCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/_/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function normalizeRegionalKey(r) {
@@ -535,13 +523,11 @@ function ensureMapUI() {
   function setBase(kind) {
     if (!map) return;
 
-    // remove bases
     try {
       if (baseLayerOSM) map.removeLayer(baseLayerOSM);
       if (baseLayerSat) map.removeLayer(baseLayerSat);
     } catch (_) {}
 
-    // remove overlays
     try {
       if (overlaySatRoads) map.removeLayer(overlaySatRoads);
       if (overlaySatLabels) map.removeLayer(overlaySatLabels);
@@ -553,12 +539,8 @@ function ensureMapUI() {
       currentBase = 'OSM';
     } else {
       if (baseLayerSat) map.addLayer(baseLayerSat);
-
-      // ✅ overlays por cima (ruas + nomes)
       if (overlaySatRoads) map.addLayer(overlaySatRoads);
       if (overlaySatLabels) map.addLayer(overlaySatLabels);
-
-      // 18 é o mais seguro (19 pode dar “tile vazio” dependendo da área)
       map.setMaxZoom(18);
       currentBase = 'SAT';
     }
@@ -631,32 +613,28 @@ export function initMap() {
   if (map) return;
 
   map = L.map('mapaCeara').setView([-4.8, -39.5], 7);
+  window.__leaflet_map_instance = map; // ✅ para o panel centralizar
 
-  // ✅ Base OSM
   baseLayerOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '© OpenStreetMap'
   });
 
-  // ✅ Satélite (imagem)
   baseLayerSat = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 18, attribution: 'Tiles © Esri' }
   );
 
-  // ✅ Overlay: ruas (linhas)
   overlaySatRoads = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 18, attribution: 'Roads © Esri' }
   );
 
-  // ✅ Overlay: labels (nomes)
   overlaySatLabels = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 18, attribution: 'Labels © Esri' }
   );
 
-  // começa no OSM
   baseLayerOSM.addTo(map);
   map.setMaxZoom(18);
   currentBase = 'OSM';
@@ -821,12 +799,10 @@ export async function updateHeatmap(data) {
     return;
   }
 
-  // ALIMENTADOR (sem painel)
   await loadAlimentadoresForRegionOnce(currentRegion);
   if (seq !== renderSeq) return;
 
   const displayByBase = buildBaseDisplayNameMap(lastData);
-
   const intensityByBase = buildIntensityByBaseFromRows(lastData);
   if (!intensityByBase.size) return;
 
@@ -894,25 +870,6 @@ export async function updateHeatmap(data) {
 /* =========================
    Estruturas (pinos) - CD / F / R
 ========================= */
-function normKey2(v) {
-  return String(v ?? '')
-    .trim()
-    .toUpperCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/_/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// extrai código tipo SEC5218 / TLM8264 / RTB0292 etc
-function extractElementoCode(el) {
-  const s = normKey2(el);
-  const m = s.match(/([A-Z]{2,4}\d{4})/);
-  return m ? m[1] : '';
-}
-
 function getElementoRawFromRow(row) {
   return String(
     row?.ELEMENTO ??
@@ -931,14 +888,6 @@ function getAlimRawFromRow2(row) {
     row?.['ALIMENT. '] ??
     ''
   );
-}
-
-// ✅ FIX: agora aceita 2–4 letras + 2–4 dígitos (TLM8264 / FEW0665 / TLOB214 etc)
-function extractAlimBaseFlex(name) {
-  const n = normKey2(name);
-  const m = n.match(/([A-Z]{2,4}\s?\d{2,4})/);
-  if (!m) return '';
-  return m[1].replace(/\s+/g, '');
 }
 
 function elementToCat(el) {

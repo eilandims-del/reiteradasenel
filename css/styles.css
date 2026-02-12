@@ -2338,3 +2338,73 @@ input:focus, select:focus{
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
+/* =========================
+   Campo de Inspeção (Estruturas)
+========================= */
+
+.estr-panel--inspect{
+  border: 1px solid rgba(10, 74, 140, 0.20);
+  box-shadow: 0 10px 28px rgba(10, 74, 140, 0.18);
+  position: relative;
+}
+
+.estr-panel--inspect::before{
+  content:"";
+  position:absolute;
+  inset:0 0 auto 0;
+  height: 4px;
+  background: var(--gradient-primary);
+  border-radius: 14px 14px 0 0;
+}
+
+.estr-title-row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 10px;
+}
+
+.estr-kicker{
+  font-size: .78rem;
+  font-weight: 950;
+  color: rgba(10,74,140,.85);
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.estr-headline{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  font-weight: 950;
+}
+
+.estr-toggle{
+  width: 38px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.10);
+  background: rgba(255,255,255,0.9);
+  cursor: pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow: 0 6px 16px rgba(0,0,0,.08);
+  transition: transform .12s ease, background .12s ease;
+}
+
+.estr-toggle:hover{
+  transform: translateY(-1px);
+  background: rgba(232,244,253,0.9);
+}
+
+/* ===== Estado COLAPSADO ===== */
+.estr-panel.is-collapsed .estr-controls,
+.estr-panel.is-collapsed .estr-panel-body{
+  display: none;
+}
+
+.estr-panel.is-collapsed .estr-toggle i{
+  transform: rotate(180deg);
+}

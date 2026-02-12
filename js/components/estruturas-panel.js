@@ -2,26 +2,7 @@
 // FILE: js/components/estruturas-panel.js
 // =========================
 import { updateEstruturasPins } from './mapa.js';
-
-function normKey(v) {
-  return String(v ?? '')
-    .trim()
-    .toUpperCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/_/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function extractElementoCode(el) {
-  const s = normKey2(el);
-  // pega padrão: 2~4 letras + 4 dígitos (TSZ8821 / RTB0292 / FFF2396 / SEC5218)
-  const m = s.match(/([A-Z]{2,4}\d{4})/);
-  return m ? m[1] : '';
-}
-
+import { extractAlimBaseFlex } from '../utils/estruturas-utils.js';
 
 let lastCtx = {
   regional: '',
@@ -69,7 +50,6 @@ function setList(items = []) {
       <div class="estr-badge">${p.category}</div>
     `;
 
-    // ao clicar, abre popup (o marker já existe no mapa; aqui só centraliza)
     div.onclick = () => {
       try {
         window.dispatchEvent(new CustomEvent('estruturas:focus', { detail: { lat: p.lat, lng: p.lng, name: p.name } }));
@@ -84,10 +64,7 @@ function fillAlimOptions(catalog = [], selectedAlims = new Set()) {
   const sel = document.getElementById('estrAlimentador');
   if (!sel) return;
 
-  // opções: TODOS + (os do catálogo)
   const opts = ['TODOS', ...catalog.map(extractAlimBaseFlex).filter(Boolean)];
-
-  // remove duplicados
   const uniq = Array.from(new Set(opts.map(v => String(v).toUpperCase())));
 
   const current = sel.value || 'TODOS';
@@ -100,7 +77,6 @@ function fillAlimOptions(catalog = [], selectedAlims = new Set()) {
     sel.appendChild(o);
   });
 
-  // mantém valor anterior se existir
   const exists = uniq.includes(current);
   sel.value = exists ? current : 'TODOS';
 }
@@ -129,10 +105,9 @@ async function run() {
   });
 
   const matches = res?.matches || [];
-  setStatus(`ok • exibindo ${matches.length}`);
+  setStatus(`exibindo ${matches.length}`);
   setList(matches);
 
-  // focar no mapa quando clicar item
   window.addEventListener('estruturas:focus', (e) => {
     const d = e?.detail || {};
     if (!d.lat || !d.lng) return;
@@ -157,6 +132,27 @@ export function initEstruturasPanel() {
   document.getElementById('estrCatF')?.addEventListener('change', run);
   document.getElementById('estrCatR')?.addEventListener('change', run);
 
+  const panel = document.getElementById('estruturasPanel');
+  const toggle = document.getElementById('estrToggle');
+
+  const applyCollapsedUI = (collapsed) => {
+    if (!panel || !toggle) return;
+    panel.classList.toggle('is-collapsed', collapsed);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+  };
+
+  try {
+    const saved = localStorage.getItem('estrPanelCollapsed');
+    applyCollapsedUI(saved === '1');
+  } catch (_) {}
+
+  toggle?.addEventListener('click', () => {
+    if (!panel) return;
+    const collapsedNow = !panel.classList.contains('is-collapsed');
+    applyCollapsedUI(collapsedNow);
+    try { localStorage.setItem('estrPanelCollapsed', collapsedNow ? '1' : '0'); } catch (_) {}
+  });
+
   setStatus('aguardando dados');
 }
 
@@ -168,6 +164,5 @@ export function updateEstruturasContext({ regional, rows, catalog, selectedAlime
 
   fillAlimOptions(lastCtx.catalog, lastCtx.selectedAlims);
 
-  // auto-run
   run();
 }
