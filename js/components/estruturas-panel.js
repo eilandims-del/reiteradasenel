@@ -143,8 +143,18 @@ export function initEstruturasPanel() {
 
   try {
     const saved = localStorage.getItem('estrPanelCollapsed');
-    applyCollapsedUI(saved === '1');
-  } catch (_) {}
+  
+    // Se nunca foi salvo, começa fechado
+    if (saved === null) {
+      applyCollapsedUI(true);
+      localStorage.setItem('estrPanelCollapsed', '1');
+    } else {
+      applyCollapsedUI(saved === '1');
+    }
+  } catch (_) {
+    applyCollapsedUI(true);
+  }
+  
 
   toggle?.addEventListener('click', () => {
     if (!panel) return;
