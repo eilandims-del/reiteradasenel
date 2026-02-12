@@ -485,8 +485,8 @@ function ensureMapUI() {
 
     <div style="margin-top:10px;">Base:</div>
     <div style="display:flex; gap:6px;">
-      <button id="btnBaseOSM">Mapa</button>
-      <button id="btnBaseSAT">Satélite + Ruas</button>
+      <button id="btnBaseOSM">Ruas</button>
+      <button id="btnBaseSAT">Satélite</button>
     </div>
 
     <div style="margin-top:10px; font-size: 11px; color: #444; font-weight: 900;">
