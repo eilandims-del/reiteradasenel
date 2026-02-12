@@ -68,6 +68,10 @@ function getElementoTipo(elemento) {
 
 /* =========================
    ✅ Ranking por ELEMENTO (robusto)
+   - lê coluna ELEMENTO (com variações)
+   - agrega ocorrências
+   - filtra reiteradas (count >= 2)
+   - ordena por count desc
 ========================= */
 function generateRankingElemento(data) {
   const counts = new Map();
@@ -85,7 +89,7 @@ function generateRankingElemento(data) {
 
   return Array.from(counts.entries())
     .map(([elemento, count]) => ({ elemento, count, ocorrencias: ocorrMap.get(elemento) }))
-    .filter(x => (Number(x.count) || 0) >= MIN_REPEAT_COUNT)
+    .filter(x => (Number(x.count) || 0) >= MIN_REPEAT_COUNT) // ✅ só reiteradas
     .sort((a, b) => b.count - a.count);
 }
 
@@ -124,6 +128,7 @@ function getOcorrenciasFromRankingView(rankingView) {
 
 /**
  * ✅ EXPORT: use no main.js para atualizar charts/map
+ * com base no Ranking Elemento atual (filtro + busca)
  */
 export function getRankingViewRows() {
   const view = getFilteredRanking(currentRankingData || []);
@@ -168,6 +173,7 @@ function updateRankingTotal(rankingView) {
   const totalElementos = Array.isArray(rankingView) ? rankingView.length : 0;
 
   el.textContent = `Reiteradas: ${totalElementos}`;
+
   el.style.cursor = 'pointer';
   el.title = 'Clique para baixar Excel da visão atual (ELEMENTO / DATA / ALIMENTADOR / INCIDÊNCIA)';
 
@@ -291,6 +297,7 @@ export function renderRankingElemento(data) {
 
 /**
  * ✅ Atualizar ranking com novos dados
+ * charts/map serão atualizados pelo main.js usando getRankingViewRows()
  */
 export function updateRanking(data) {
   renderRankingElemento(data);
@@ -335,6 +342,7 @@ export function generateRankingText() {
   if (!currentRankingData.length) return '⚠️ Nenhum ranking disponível no momento.';
 
   const view = getFilteredRanking(currentRankingData);
+
   const regional = getRegionalLabel();
 
   if (!view.length) {
@@ -598,15 +606,15 @@ function getValueSmartRow(obj, key) {
   if (obj[upper] != null) return obj[upper];
   if (obj[lower] != null) return obj[lower];
 
-  const normalizeKeyLocal = (k) =>
+  const normalizeKey2 = (k) =>
     String(k || '')
       .trim()
       .toLowerCase()
       .replace(/\./g, '')
       .replace(/\s+/g, ' ');
 
-  const target = normalizeKeyLocal(key);
-  const foundKey = Object.keys(obj).find(k => normalizeKeyLocal(k) === target);
+  const target = normalizeKey2(key);
+  const foundKey = Object.keys(obj).find(k => normalizeKey2(k) === target);
   if (foundKey) return obj[foundKey];
 
   return '';
@@ -684,6 +692,7 @@ function exportRankingElementoToExcel(rankingView) {
     'sem_filtro_data';
 
   const regional = getRegionalLabel().replace(/\s+/g, '_');
+
   const fileName = `Ranking_Elemento_${regional}_${periodo}_${stamp}.xlsx`;
 
   window.XLSX.writeFile(wb, fileName);

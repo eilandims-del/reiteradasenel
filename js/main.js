@@ -6,13 +6,13 @@
  *
  * Fluxo:
  * 1) Seleciona Regional  -> abre Modal de Alimentadores (obrigatório escolher)
- * 2) Seleciona Alimentadores (ou "TODOS") por Conjunto
- * 3) Seleciona período (data inicial/final) e clica em Aplicar
+ * 2) Seleciona Alimentadores (ou "TODOS")
+ * 3) Seleciona período (data inicial/final) e clica em Aplicar (ou Aplicar do modal)
  */
 
 import { DataService } from './services/firebase-service.js';
 import { getAllColumns, getOcorrenciasByElemento, normKey, getFieldValue } from './services/data-service.js';
-
+import { ALIMENTADORES_POR_REGIONAL } from './constants/alimentadores.js';
 import { initEstruturasPanel, updateEstruturasContext } from './components/estruturas-panel.js';
 
 import {
@@ -36,36 +36,36 @@ import {
 
 import { copyToClipboard, showToast, debounce } from './utils/helpers.js';
 
-// ✅ Modal catálogo (Regional -> Conjunto -> Alimentadores)
-import { setupAlimentadoresCatalogModal } from './components/modal-alimentadores-catalog.js';
-import { getAllAlimentadoresForRegional } from './services/alimentadores-catalog.js';
-
 let currentData = [];
 let selectedAdditionalColumns = [];
+
+// ✅ Alimentadores
+let selectedAlimentadores = new Set(); // Set(normKey(alimentador completo))
+
+// ✅ Modo e obrigatoriedade
+// - 'NONE'  : ainda não escolheu nada (obrigatório decidir)
+// - 'TODOS' : sem filtro
+// - 'CUSTOM': selecionou 1+ alimentadores
+let alimSelectionMode = 'NONE';
+let alimTouched = false;
 
 // ✅ Regional selecionada
 let selectedRegional = ''; // 'ATLANTICO' | 'NORTE' | 'CENTRO NORTE'
 
-// ✅ Alimentadores selecionados (Set de normKey)
-let selectedAlimentadores = new Set();
-
-// ===== Helpers =====
-
-function getCatalogForSelectedRegional() {
-  if (!selectedRegional) return [];
-  return getAllAlimentadoresForRegional(selectedRegional);
-}
-
 function isAllAlimentadoresSelected() {
+  if (!selectedRegional) return false;
   const catalog = getCatalogForSelectedRegional();
-  if (!catalog.length) return false;
-  return selectedAlimentadores.size === catalog.length;
+  const totalCatalog = catalog.length;
+  if (!totalCatalog) return false;
+  return selectedAlimentadores.size === totalCatalog;
 }
 
 function alimentadorFilterActive() {
+  // Filtro só aplica quando for subconjunto (CUSTOM).
+  // Se estiver "TODOS" (selecionou o catálogo inteiro), não filtra.
   if (!selectedRegional) return false;
   if (selectedAlimentadores.size === 0) return false;
-  if (isAllAlimentadoresSelected()) return false; // TODOS => sem filtro
+  if (isAllAlimentadoresSelected()) return false;
   return true;
 }
 
@@ -84,82 +84,30 @@ function getDataWithAlimentadorFilter(data) {
   });
 }
 
-function updateAlimentadoresBadge() {
-  const el = document.getElementById('badgeOpenAlimentadores');
-  if (!el) return;
-
-  const setBadge = (txt) => {
-    el.innerHTML = `<i class="fas fa-diagram-project"></i> ${txt}`;
-  };
-
-  if (!selectedRegional) {
-    setBadge('Alimentadores: —');
-    return;
-  }
-
-  const catalog = getCatalogForSelectedRegional();
-  if (!catalog.length) {
-    setBadge('Alimentadores: —');
-    return;
-  }
-
-  if (isAllAlimentadoresSelected()) {
-    setBadge('Alimentadores: TODOS');
-    return;
-  }
-
-  if (selectedAlimentadores.size > 0) {
-    setBadge(`Alimentadores: ${selectedAlimentadores.size}`);
-    return;
-  }
-
-  setBadge('Alimentadores: (selecionar)');
-}
-
-function validateAlimentadoresSelection(silent = false) {
-  if (!selectedRegional) {
-    if (!silent) showToast('Selecione uma Regional primeiro.', 'error');
-    return false;
-  }
-
-  const catalog = getCatalogForSelectedRegional();
-  if (!catalog.length) {
-    if (!silent) showToast('Catálogo de alimentadores não encontrado para esta regional.', 'error');
-    return false;
-  }
-
-  if (selectedAlimentadores.size > 0) return true;
-
-  if (!silent) showToast('Selecione TODOS ou pelo menos 1 alimentador.', 'error');
-  return false;
-}
 
 /**
- * Renderizar todos os componentes
+ * Inicializar aplicação
  */
-function renderAll() {
-  if (!currentData.length) return;
+async function init() {
+  initModalEvents();
+  initEventListeners();
+  initMap();
+  initEstruturasPanel();
 
-  const base = getDataWithAlimentadorFilter(currentData);
+  renderEmptyState();
+  setMapRegional('TODOS');
+  resetMap();
+  updateHeatmap([]);
 
-  updateRanking(base);
-
-  const rowsFromRankingView = getRankingViewRows();
-  updateCharts(rowsFromRankingView);
-  updateHeatmap(rowsFromRankingView);
-
-  // ✅ Atualiza painel de estruturas com base na visão atual (ranking view)
-  try {
-    const catalog = getCatalogForSelectedRegional();
-    updateEstruturasContext({
-      regional: selectedRegional,
-      rows: rowsFromRankingView,
-      catalog,
-      selectedAlimentadores
-    });
-  } catch (_) {}
-
-  updateAlimentadoresBadge();
+  // ✅ Guard global: bloqueia fechar modalAlimentadores se inválido
+  window.__beforeCloseModal = (modalId) => {
+    if (modalId !== 'modalAlimentadores') return true;
+  
+    const ok = validateAlimentadoresSelection(true);
+    if (!ok) showToast('Escolha TODOS ou selecione 1+ alimentadores antes de fechar.', 'error');
+    return ok;
+  };
+  
 }
 
 /**
@@ -179,9 +127,9 @@ function renderEmptyState() {
   if (totalEl) totalEl.textContent = 'Reiteradas: 0';
 
   updateAlimentadoresBadge();
-
   const estrList = document.getElementById('estrList');
   if (estrList) estrList.innerHTML = '<div class="estr-empty">Selecione Regional + Período e aplique.</div>';
+
 }
 
 /**
@@ -202,6 +150,462 @@ function setRegionalUI(regional) {
 
   const label = document.getElementById('regionalAtualLabel');
   if (label) label.textContent = regional ? regional : '—';
+}
+
+/* =========================
+   Alimentadores (Modal)
+========================= */
+
+function getCatalogForSelectedRegional() {
+  const regionalKey = (selectedRegional || '').toUpperCase().trim();
+  return ALIMENTADORES_POR_REGIONAL[regionalKey] || [];
+}
+
+function badgeHTML(text) {
+  return `<i class="fas fa-diagram-project"></i> ${text}`;
+}
+
+function updateAlimentadoresBadge() {
+  const el = document.getElementById('badgeOpenAlimentadores');
+  if (!el) return;
+
+  const setBadge = (txt) => {
+    el.innerHTML = `<i class="fas fa-diagram-project"></i> ${txt}`;
+  };
+
+  if (!selectedRegional) {
+    setBadge('Alimentadores: —');
+    return;
+  }
+
+  const catalog = getCatalogForSelectedRegional();
+  const totalCatalog = catalog.length;
+
+  if (!totalCatalog) {
+    setBadge('Alimentadores: —');
+    return;
+  }
+
+  // TODOS = Set tem o tamanho do catálogo
+  if (selectedAlimentadores.size === totalCatalog) {
+    setBadge('Alimentadores: TODOS');
+    return;
+  }
+
+  if (selectedAlimentadores.size > 0) {
+    setBadge(`Alimentadores: ${selectedAlimentadores.size}`);
+    return;
+  }
+
+  // Ainda não selecionou nada (estado inicial antes de confirmar)
+  setBadge('Alimentadores: (selecionar)');
+}
+
+let __alimCloseWarnTimer = 0;
+
+function warnObrigatorioOnce() {
+  // evita spam de toast se clicar várias vezes rápido
+  const now = Date.now();
+  if (now - __alimCloseWarnTimer < 900) return;
+  __alimCloseWarnTimer = now;
+  showToast('Escolha "TODOS" ou selecione 1+ alimentadores antes de fechar.', 'error');
+}
+
+function validateAlimentadoresSelection(silent = false) {
+  if (!selectedRegional) {
+    if (!silent) showToast('Selecione uma Regional primeiro.', 'error');
+    return false;
+  }
+
+  const catalog = getCatalogForSelectedRegional();
+  const totalCatalog = catalog.length;
+
+  // Se o catálogo não existir, não deixa avançar
+  if (!totalCatalog) {
+    if (!silent) showToast('Catálogo de alimentadores não encontrado para esta regional.', 'error');
+    return false;
+  }
+
+  // Considera válido se:
+  // - selecionou pelo menos 1 alimentador
+  // - ou selecionou TODOS (que, no nosso caso, é quando o Set tem o tamanho do catálogo)
+  const isAll = selectedAlimentadores.size === totalCatalog;
+  const hasOneOrMore = selectedAlimentadores.size > 0;
+
+  if (isAll || hasOneOrMore) return true;
+
+  if (!silent) showToast('Selecione TODOS ou pelo menos 1 alimentador.', 'error');
+  return false;
+}
+
+
+
+function openAlimentadoresModal() {
+  if (!selectedRegional) {
+    showToast('Selecione uma Regional primeiro.', 'error');
+    return;
+  }
+
+  const catalog = getCatalogForSelectedRegional();
+  if (!catalog.length) {
+    showToast('Catálogo de alimentadores não encontrado para esta regional.', 'error');
+    return;
+  }
+
+  const modal = document.getElementById('modalAlimentadores');
+  const listEl = document.getElementById('alimListModal');
+  const hintEl = document.getElementById('alimHintModal');
+  const searchEl = document.getElementById('alimSearchModal');
+
+  const btnTodos = document.getElementById('btnAlimAllModal');
+  const btnLimpar = document.getElementById('btnAlimClearModal');
+  const btnConfirmar = document.getElementById('btnConfirmarAlimModal');
+
+  if (!modal || !listEl || !hintEl || !btnTodos || !btnLimpar || !btnConfirmar) {
+    console.error('[ALIMENTADORES] Elementos do modal não encontrados. Confira os IDs no index.html');
+    return;
+  }
+
+  if (searchEl) searchEl.value = '';
+
+  // Contagem real (se já tiver dataset carregado)
+  const baseRows = Array.isArray(currentData) ? currentData : [];
+  const counts = new Map();
+  baseRows.forEach(r => {
+    const raw =
+      getFieldValue(r, 'ALIMENT.') ||
+      getFieldValue(r, 'ALIMENTADOR') ||
+      getFieldValue(r, 'ALIMENT');
+
+    const k = normKey(raw);
+    if (!k) return;
+    counts.set(k, (counts.get(k) || 0) + 1);
+  });
+
+  const totalCatalog = catalog.length;
+
+  const syncAlimSelectionState = () => {
+    alimTouched = true;
+  
+    if (selectedAlimentadores.size === 0) {
+      alimSelectionMode = 'NONE';
+      return;
+    }
+    if (selectedAlimentadores.size === totalCatalog) {
+      alimSelectionMode = 'TODOS';
+      return;
+    }
+    alimSelectionMode = 'CUSTOM';
+  };
+  
+
+  const renderHint = () => {
+    // TODOS = selecionou tudo
+    if (selectedAlimentadores.size === totalCatalog) {
+      hintEl.innerHTML = `Modo: <b>TODOS</b> • Catálogo: <b>${totalCatalog}</b>`;
+      return;
+    }
+
+    if (selectedAlimentadores.size > 0) {
+      hintEl.innerHTML = `Selecionados: <b>${selectedAlimentadores.size}</b> • Catálogo: <b>${totalCatalog}</b>`;
+      return;
+    }
+
+    hintEl.innerHTML = `Escolha <b>TODOS</b> ou selecione <b>1+</b> alimentadores.`;
+  };
+
+  const renderList = () => {
+    listEl.innerHTML = '';
+
+    catalog.forEach(alim => {
+      const key = normKey(alim);
+      const qtd = counts.get(key);
+
+      const checked = selectedAlimentadores.has(key);
+
+      const row = document.createElement('label');
+      row.className = 'alim-chip';
+      row.dataset.key = key;
+
+      row.innerHTML = `
+        <span class="alim-left">
+          <input type="checkbox" value="${key}" ${checked ? 'checked' : ''}>
+          <span class="alim-name">${alim}</span>
+        </span>
+        <small class="alim-count">${Number.isFinite(qtd) ? qtd : ''}</small>
+      `;
+
+      const input = row.querySelector('input');
+      row.classList.toggle('active', checked);
+
+      input.onchange = () => {
+        row.classList.toggle('active', input.checked);
+        if (input.checked) selectedAlimentadores.add(key);
+        else selectedAlimentadores.delete(key);
+      
+        syncAlimSelectionState();
+        renderHint();
+        updateAlimentadoresBadge();
+      };
+      
+
+      listEl.appendChild(row);
+    });
+
+    renderHint();
+    updateAlimentadoresBadge();
+  };
+
+  // ✅ TODOS: seleciona tudo + fecha + aplica se já tiver data
+  btnTodos.onclick = async (e) => {
+    e.preventDefault();
+
+    selectedAlimentadores = new Set(catalog.map(a => normKey(a)));
+    syncAlimSelectionState();
+    renderHint();
+    updateAlimentadoresBadge();
+
+    const di = document.getElementById('dataInicial')?.value || '';
+    const df = document.getElementById('dataFinal')?.value || '';
+
+    // Se tem data, já recarrega e atualiza cards
+    if (di || df) {
+      await applyFiltersDebounced();
+    } else if (currentData.length) {
+      renderAll();
+    }
+
+    closeModal('modalAlimentadores');
+  };
+
+  // ✅ LIMPAR: deixa vazio (inválido para fechar, até marcar 1+)
+  btnLimpar.onclick = (e) => {
+    e.preventDefault();
+    selectedAlimentadores = new Set();
+    syncAlimSelectionState();
+    renderList();
+  };
+
+  // Busca
+  if (searchEl) {
+    searchEl.oninput = (e) => {
+      const term = String(e.target.value || '').trim().toUpperCase();
+      Array.from(listEl.children).forEach(chip => {
+        const text = chip.textContent.toUpperCase();
+        chip.style.display = text.includes(term) ? 'flex' : 'none';
+      });
+    };
+  }
+
+  // ✅ CONFIRMAR = aplica (se tiver data, recarrega; senão aplica local)
+  btnConfirmar.onclick = async (e) => {
+    e.preventDefault();
+
+    if (!validateAlimentadoresSelection(false)) return;
+
+    const di = document.getElementById('dataInicial')?.value || '';
+    const df = document.getElementById('dataFinal')?.value || '';
+
+    if (di || df) {
+      await applyFiltersDebounced();
+      closeModal('modalAlimentadores');
+      return;
+    }
+
+    if (currentData.length) {
+      renderAll();
+      closeModal('modalAlimentadores');
+      return;
+    }
+
+    showToast('Selecione um período para carregar os dados.', 'error');
+  };
+
+  // Render inicial e abre
+  renderList();
+  openModal('modalAlimentadores');
+}
+
+
+
+
+
+/**
+ * Renderizar todos os componentes
+ */
+function renderAll() {
+  if (!currentData.length) return;
+
+  const base = getDataWithAlimentadorFilter(currentData);
+
+  updateRanking(base);
+
+  const rowsFromRankingView = getRankingViewRows();
+  updateCharts(rowsFromRankingView);
+  updateHeatmap(rowsFromRankingView);
+    // ✅ Atualiza painel de estruturas com base na visão atual (ranking view)
+    try {
+      const catalog = getCatalogForSelectedRegional();
+      updateEstruturasContext({
+        regional: selectedRegional,
+        rows: rowsFromRankingView,
+        catalog,
+        selectedAlimentadores
+      });
+    } catch (_) {}
+  
+
+  updateAlimentadoresBadge();
+}
+
+/**
+ * Inicializar event listeners
+ */
+function initEventListeners() {
+  document.getElementById('fecharModal')?.addEventListener('click', () => closeModal('modalDetalhes'));
+  document.getElementById('fecharModalInfo')?.addEventListener('click', () => closeModal('modalAdicionarInfo'));
+  document.getElementById('btnExportExcel')?.addEventListener('click', exportDetailsToExcel);
+
+  document.getElementById('btnAdicionarInfo')?.addEventListener('click', openModalAddInfo);
+  document.getElementById('confirmarInfo')?.addEventListener('click', confirmAddInfo);
+  document.getElementById('cancelarInfo')?.addEventListener('click', () => closeModal('modalAdicionarInfo'));
+
+  document.getElementById('aplicarFiltro')?.addEventListener('click', applyFiltersDebounced);
+  document.getElementById('limparFiltro')?.addEventListener('click', clearFilters);
+
+  // Badge abre modal
+  document.getElementById('badgeOpenAlimentadores')?.addEventListener('click', () => {
+    if (!selectedRegional) {
+      showToast('Selecione uma Regional primeiro.', 'error');
+      return;
+    }
+    openAlimentadoresModal();
+  });
+
+  // Regional -> abre modal alimentadores (obrigatório escolher)
+  document.getElementById('btnRegionalAtlantico')?.addEventListener('click', async () => {
+    setRegionalUI('ATLANTICO');
+    setMapRegional('ATLANTICO');
+
+    currentData = [];
+    selectedAdditionalColumns = [];
+
+    // reset seleção (agora obrigatório escolher)
+    alimSelectionMode = 'NONE';
+    alimTouched = false;
+    selectedAlimentadores = new Set();
+
+    renderEmptyState();
+    showToast('Regional selecionada: ATLANTICO. Selecione alimentadores (obrigatório) e depois o período.', 'success');
+    openAlimentadoresModal();
+    
+  });
+
+  document.getElementById('btnRegionalNorte')?.addEventListener('click', async () => {
+    setRegionalUI('NORTE');
+    setMapRegional('NORTE');
+
+    currentData = [];
+    selectedAdditionalColumns = [];
+
+    alimSelectionMode = 'NONE';
+    alimTouched = false;
+    selectedAlimentadores = new Set();
+
+    renderEmptyState();
+    showToast('Regional selecionada: NORTE. Selecione alimentadores (obrigatório) e depois o período.', 'success');
+    openAlimentadoresModal();
+  });
+
+  document.getElementById('btnRegionalCentroNorte')?.addEventListener('click', async () => {
+    setRegionalUI('CENTRO NORTE');
+    setMapRegional('CENTRO NORTE');
+
+    currentData = [];
+    selectedAdditionalColumns = [];
+
+    alimSelectionMode = 'NONE';
+    alimTouched = false;
+    selectedAlimentadores = new Set();
+
+    renderEmptyState();
+    showToast('Regional selecionada: CENTRO NORTE. Selecione alimentadores (obrigatório) e depois o período.', 'success');
+    openAlimentadoresModal();
+  });
+
+  // Copiar ranking
+  document.getElementById('copiarRankingElemento')?.addEventListener('click', async () => {
+    const text = generateRankingText();
+    const result = await copyToClipboard(text);
+    showToast(result.success ? 'Ranking copiado!' : 'Erro ao copiar.', result.success ? 'success' : 'error');
+  });
+
+  // Botões filtro ELEMENTO
+  const btnTodos = document.getElementById('btnFiltroTodos');
+  const btnTrafo = document.getElementById('btnFiltroTrafo');
+  const btnFusivel = document.getElementById('btnFiltroFusivel');
+  const btnOutros = document.getElementById('btnFiltroReligador');
+
+  const setActive = (activeBtn) => {
+    [btnTodos, btnTrafo, btnFusivel, btnOutros].forEach(b => b?.classList.remove('active'));
+    activeBtn?.classList.add('active');
+  };
+
+  const rerenderFromRankingView = () => {
+    if (!currentData.length) return;
+    const rows = getRankingViewRows();
+    updateCharts(rows);
+    updateHeatmap(rows);
+  };
+
+  btnTodos?.addEventListener('click', () => { setElementoFilter('TODOS'); setActive(btnTodos); rerenderFromRankingView(); });
+  btnTrafo?.addEventListener('click', () => { setElementoFilter('TRAFO'); setActive(btnTrafo); rerenderFromRankingView(); });
+  btnFusivel?.addEventListener('click', () => { setElementoFilter('FUSIVEL'); setActive(btnFusivel); rerenderFromRankingView(); });
+  btnOutros?.addEventListener('click', () => { setElementoFilter('RELIGADOR'); setActive(btnOutros); rerenderFromRankingView(); });
+
+  setElementoFilter('TODOS');
+  setActive(btnTodos);
+
+  // busca
+  const searchElemento = document.getElementById('searchElemento');
+  const btnClearSearch = document.getElementById('btnClearSearchElemento');
+  let searchDebounce = null;
+
+  searchElemento?.addEventListener('input', (e) => {
+    clearTimeout(searchDebounce);
+    const value = e.target.value;
+    searchDebounce = setTimeout(() => {
+      setElementoSearch(value);
+      rerenderFromRankingView();
+    }, 180);
+  });
+
+  btnClearSearch?.addEventListener('click', () => {
+    if (searchElemento) searchElemento.value = '';
+    setElementoSearch('');
+    rerenderFromRankingView();
+    searchElemento?.focus();
+  });
+
+  updateAlimentadoresBadge();
+
+  // ✅ Quando clicar em uma barra do Ranking Alimentador, filtra o mapa e mostra info
+document.addEventListener('alimentador:selected', (e) => {
+  const detail = e?.detail || {};
+  const nome = detail.nome || '—';
+  const qtd = Number(detail.qtd || 0);
+  const ocorrencias = Array.isArray(detail.ocorrencias) ? detail.ocorrencias : [];
+
+  const info = document.getElementById('mapHeatInfo');
+  if (info) {
+    info.textContent = `• ${nome} — Reiteradas: ${qtd}`;
+  }
+
+  // ✅ Atualiza o heatmap só com as ocorrências daquele alimentador
+  try { updateHeatmap(ocorrencias); } catch (_) {}
+});
+
+
 }
 
 /**
@@ -241,7 +645,7 @@ async function loadDataByPeriod(di, df) {
     return;
   }
 
-  // fallback
+  // ✅ fallback quando não vem nada
   currentData = [];
   if (rankingContainer) {
     rankingContainer.innerHTML =
@@ -252,6 +656,7 @@ async function loadDataByPeriod(di, df) {
   updateHeatmap([]);
   showToast(`Nenhum dado encontrado (${selectedRegional}).`, 'error');
 }
+
 
 /**
  * Aplicar filtros (com debounce)
@@ -279,6 +684,10 @@ const applyFiltersDebounced = debounce(async () => {
   await loadDataByPeriod(di, df);
 }, 300);
 
+function applyFilters() {
+  return applyFiltersDebounced();
+}
+
 /**
  * Limpar filtros
  */
@@ -294,6 +703,9 @@ function clearFilters() {
   setElementoSearch('');
   setElementoFilter('TODOS');
 
+  // reset seleção alimentadores (volta a exigir escolher)
+  alimSelectionMode = 'NONE';
+  alimTouched = false;
   selectedAlimentadores = new Set();
 
   renderEmptyState();
@@ -311,6 +723,7 @@ function openModalAddInfo() {
 
   const nonFixedColumns = allColumns.filter(col => {
     const normalized = String(col).toUpperCase().trim().replace(/\./g, '');
+
     if (fixedColumns.includes(normalized)) return false;
 
     const normalizedNoDot = normalized.replace(/\./g, '');
@@ -367,184 +780,6 @@ function confirmAddInfo() {
 
   closeModal('modalAdicionarInfo');
   showToast('Informações adicionais atualizadas.', 'success');
-}
-
-/**
- * Inicializar event listeners
- */
-function initEventListeners() {
-  document.getElementById('fecharModal')?.addEventListener('click', () => closeModal('modalDetalhes'));
-  document.getElementById('fecharModalInfo')?.addEventListener('click', () => closeModal('modalAdicionarInfo'));
-  document.getElementById('btnExportExcel')?.addEventListener('click', exportDetailsToExcel);
-
-  document.getElementById('btnAdicionarInfo')?.addEventListener('click', openModalAddInfo);
-  document.getElementById('confirmarInfo')?.addEventListener('click', confirmAddInfo);
-  document.getElementById('cancelarInfo')?.addEventListener('click', () => closeModal('modalAdicionarInfo'));
-
-  document.getElementById('aplicarFiltro')?.addEventListener('click', applyFiltersDebounced);
-  document.getElementById('limparFiltro')?.addEventListener('click', clearFilters);
-
-  // Copiar ranking
-  document.getElementById('copiarRankingElemento')?.addEventListener('click', async () => {
-    const text = generateRankingText();
-    const result = await copyToClipboard(text);
-    showToast(result.success ? 'Ranking copiado!' : 'Erro ao copiar.', result.success ? 'success' : 'error');
-  });
-
-  // Botões filtro ELEMENTO
-  const btnTodos = document.getElementById('btnFiltroTodos');
-  const btnTrafo = document.getElementById('btnFiltroTrafo');
-  const btnFusivel = document.getElementById('btnFiltroFusivel');
-  const btnOutros = document.getElementById('btnFiltroReligador');
-
-  const setActive = (activeBtn) => {
-    [btnTodos, btnTrafo, btnFusivel, btnOutros].forEach(b => b?.classList.remove('active'));
-    activeBtn?.classList.add('active');
-  };
-
-  const rerenderFromRankingView = () => {
-    if (!currentData.length) return;
-    const rows = getRankingViewRows();
-    updateCharts(rows);
-    updateHeatmap(rows);
-  };
-
-  btnTodos?.addEventListener('click', () => { setElementoFilter('TODOS'); setActive(btnTodos); rerenderFromRankingView(); });
-  btnTrafo?.addEventListener('click', () => { setElementoFilter('TRAFO'); setActive(btnTrafo); rerenderFromRankingView(); });
-  btnFusivel?.addEventListener('click', () => { setElementoFilter('FUSIVEL'); setActive(btnFusivel); rerenderFromRankingView(); });
-  btnOutros?.addEventListener('click', () => { setElementoFilter('RELIGADOR'); setActive(btnOutros); rerenderFromRankingView(); });
-
-  setElementoFilter('TODOS');
-  setActive(btnTodos);
-
-  // busca
-  const searchElemento = document.getElementById('searchElemento');
-  const btnClearSearch = document.getElementById('btnClearSearchElemento');
-  let searchDebounce = null;
-
-  searchElemento?.addEventListener('input', (e) => {
-    clearTimeout(searchDebounce);
-    const value = e.target.value;
-    searchDebounce = setTimeout(() => {
-      setElementoSearch(value);
-      rerenderFromRankingView();
-    }, 180);
-  });
-
-  btnClearSearch?.addEventListener('click', () => {
-    if (searchElemento) searchElemento.value = '';
-    setElementoSearch('');
-    rerenderFromRankingView();
-    searchElemento?.focus();
-  });
-
-  // Clique no gráfico de alimentador filtra heatmap
-  document.addEventListener('alimentador:selected', (e) => {
-    const detail = e?.detail || {};
-    const nome = detail.nome || '—';
-    const qtd = Number(detail.qtd || 0);
-    const ocorrencias = Array.isArray(detail.ocorrencias) ? detail.ocorrencias : [];
-
-    const info = document.getElementById('mapHeatInfo');
-    if (info) info.textContent = `• ${nome} — Reiteradas: ${qtd}`;
-
-    try { updateHeatmap(ocorrencias); } catch (_) {}
-  });
-}
-
-/**
- * Inicializar aplicação
- */
-async function init() {
-  initModalEvents();
-  initEventListeners();
-  initMap();
-  initEstruturasPanel();
-
-  renderEmptyState();
-  setMapRegional('TODOS');
-  resetMap();
-  updateHeatmap([]);
-
-  // ✅ setup do modal catálogo
-  const alimModal = setupAlimentadoresCatalogModal({
-    getSelectedRegional: () => selectedRegional,
-    onMissingRegional: () => showToast('Selecione uma Regional primeiro.', 'error')
-  });
- 
-
-  // Badge abre modal
-  document.getElementById('badgeOpenAlimentadores')?.addEventListener('click', () => {
-    alimModal.open();
-  });
-
-  // ✅ recebe seleção do modal
-  document.addEventListener('alimentadores:changed', async (e) => {
-    const d = e?.detail || {};
-    const regional = String(d.regional || selectedRegional || '').trim().toUpperCase();
-    const mode = String(d.mode || '').trim().toUpperCase();
-    const alims = Array.isArray(d.alimentadores) ? d.alimentadores : [];
-
-    if (regional) {
-      selectedRegional = regional;
-      setRegionalUI(regional);
-      setMapRegional(regional);
-    }
-
-    if (mode === 'TODOS') {
-      const all = getAllAlimentadoresForRegional(selectedRegional);
-      selectedAlimentadores = new Set(all.map(a => normKey(a)));
-    } else {
-      selectedAlimentadores = new Set(alims.map(a => normKey(a)));
-    }
-
-    updateAlimentadoresBadge();
-
-    // se já tiver data, aplica
-    const di = document.getElementById('dataInicial')?.value || '';
-    const df = document.getElementById('dataFinal')?.value || '';
-    if (di || df) {
-      await applyFiltersDebounced();
-    } else if (currentData.length) {
-      renderAll();
-    }
-  });
-
-  // Regional -> abre modal
-  document.getElementById('btnRegionalAtlantico')?.addEventListener('click', () => {
-    setRegionalUI('ATLANTICO');
-    setMapRegional('ATLANTICO');
-    currentData = [];
-    selectedAdditionalColumns = [];
-    selectedAlimentadores = new Set();
-    renderEmptyState();
-    showToast('Regional selecionada: ATLANTICO. Selecione alimentadores e depois o período.', 'success');
-    alimModal.open();
-  });
-
-  document.getElementById('btnRegionalNorte')?.addEventListener('click', () => {
-    setRegionalUI('NORTE');
-    setMapRegional('NORTE');
-    currentData = [];
-    selectedAdditionalColumns = [];
-    selectedAlimentadores = new Set();
-    renderEmptyState();
-    showToast('Regional selecionada: NORTE. Selecione alimentadores e depois o período.', 'success');
-    alimModal.open();
-  });
-
-  document.getElementById('btnRegionalCentroNorte')?.addEventListener('click', () => {
-    setRegionalUI('CENTRO NORTE');
-    setMapRegional('CENTRO NORTE');
-    currentData = [];
-    selectedAdditionalColumns = [];
-    selectedAlimentadores = new Set();
-    renderEmptyState();
-    showToast('Regional selecionada: CENTRO NORTE. Selecione alimentadores e depois o período.', 'success');
-    alimModal.open();
-  });
-
-  updateAlimentadoresBadge();
 }
 
 // Inicializar quando DOM estiver pronto
