@@ -73,84 +73,73 @@ FILE: index.html
     <div class="container">
 
       <!-- ✅ Seleção de Regional (OBRIGATÓRIO) -->
-      <section class="filter-section card">
-        <h2 class="section-title">
-          <i class="fas fa-layer-group"></i> Regional
-          <span style="font-size: 0.95rem; font-weight: 800; margin-left: 10px; color: var(--medium-gray);">
-            Selecionada: <span id="regionalAtualLabel">—</span>
-          </span>
+<!-- ✅ Seleção de Regional + Filtro de Data (unificado) -->
+<section class="filter-section card">
 
-          <!-- ✅ Badge clicável para reabrir modal de alimentadores -->
-          <span
-            id="badgeOpenAlimentadores"
-            title="Selecionar alimentadores"
-            style="
-              margin-left: 12px;
-              display: inline-flex;
-              align-items: center;
-              gap: 8px;
-              padding: 6px 10px;
-              border-radius: 999px;
-              border: 1px solid rgba(0,0,0,0.10);
-              background: rgba(255,255,255,0.75);
-              font-size: 0.9rem;
-              font-weight: 900;
-              color: var(--medium-gray);
-              cursor: pointer;
-              user-select: none;
-              vertical-align: middle;
-            "
-          >
-            <i class="fas fa-diagram-project"></i>
-            Alimentadores
-          </span>
-        </h2>
+  <div class="regional-header">
 
-        <div class="filter-controls" style="flex-wrap: wrap;">
-          <button id="btnRegionalAtlantico" class="btn btn-secondary">
-            <i class="fas fa-location-dot"></i> ATLANTICO
-          </button>
-          <button id="btnRegionalNorte" class="btn btn-secondary">
-            <i class="fas fa-location-dot"></i> NORTE
-          </button>
-          <button id="btnRegionalCentroNorte" class="btn btn-secondary">
-            <i class="fas fa-location-dot"></i> CENTRO NORTE
-          </button>
+    <div class="regional-left">
+      <h2 class="section-title regional-title">
+        <i class="fas fa-layer-group"></i> Regional
+      </h2>
 
-          <div style="flex: 1 1 auto;"></div>
+      <div class="regional-info">
+        Selecionada:
+        <span id="regionalAtualLabel">—</span>
 
-          <div style="font-size: 0.9rem; color: var(--medium-gray); font-weight: 700;">
-            * Para utilizar o site selecione uma <b>Regional</b> depois uma <b>Data Início e Fim</b>, depois clique em <b>Aplicar</b>.
-          </div>
-        </div>
-      </section>
+        <span
+          id="badgeOpenAlimentadores"
+          class="regional-badge"
+          title="Selecionar alimentadores"
+        >
+          <i class="fas fa-diagram-project"></i>
+          Alimentadores
+        </span>
+      </div>
+    </div>
 
-      <!-- Filtro de Data -->
-      <section class="filter-section card">
-        <h2 class="section-title">
-          <i class="fas fa-filter"></i> Filtro de Data
-        </h2>
+    <div class="regional-right">
+      <div class="date-mini-group">
+        <label>Início</label>
+        <input type="date" id="dataInicial" class="date-mini-input">
+      </div>
 
-        <div class="filter-controls">
-          <div class="filter-group">
-            <label for="dataInicial">Data Inicial:</label>
-            <input type="date" id="dataInicial" class="date-input">
-          </div>
+      <div class="date-mini-group">
+        <label>Fim</label>
+        <input type="date" id="dataFinal" class="date-mini-input">
+      </div>
 
-          <div class="filter-group">
-            <label for="dataFinal">Data Final:</label>
-            <input type="date" id="dataFinal" class="date-input">
-          </div>
+      <button id="aplicarFiltro" class="btn btn-primary btn-sm">
+        <i class="fas fa-check"></i> Aplicar
+      </button>
 
-          <button id="aplicarFiltro" class="btn btn-primary">
-            <i class="fas fa-check"></i> Aplicar
-          </button>
+      <button id="limparFiltro" class="btn btn-secondary btn-sm">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
 
-          <button id="limparFiltro" class="btn btn-secondary">
-            <i class="fas fa-times"></i> Limpar
-          </button>
-        </div>
-      </section>
+  </div>
+
+  <div class="filter-controls regional-buttons">
+    <button id="btnRegionalAtlantico" class="btn btn-secondary">
+      <i class="fas fa-location-dot"></i> ATLANTICO
+    </button>
+
+    <button id="btnRegionalNorte" class="btn btn-secondary">
+      <i class="fas fa-location-dot"></i> NORTE
+    </button>
+
+    <button id="btnRegionalCentroNorte" class="btn btn-secondary">
+      <i class="fas fa-location-dot"></i> CENTRO NORTE
+    </button>
+
+    <div class="regional-hint">
+      * Selecione uma <b>Regional</b>, depois <b>Período</b> e clique em <b>Aplicar</b>.
+    </div>
+  </div>
+
+</section>
+
 
       <section class="rankings-grid">
         <!-- Ranking por ELEMENTO -->

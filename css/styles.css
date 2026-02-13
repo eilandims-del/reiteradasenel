@@ -2515,4 +2515,106 @@ input:focus, select:focus{
 #modalInspecaoClose:active {
   transform: scale(0.95);
 }
+/* =========================
+   Regional + Filtro Unificado
+========================= */
+
+.regional-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.regional-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.regional-title {
+  margin-bottom: 0;
+}
+
+.regional-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  color: var(--medium-gray);
+}
+
+.regional-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.10);
+  background: rgba(255,255,255,0.85);
+  font-size: 0.85rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.regional-badge:hover {
+  background: rgba(10,74,140,0.08);
+  border-color: rgba(10,74,140,0.35);
+}
+
+.regional-right {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.date-mini-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: var(--medium-gray);
+}
+
+.date-mini-input {
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.15);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.regional-buttons {
+  margin-top: 18px;
+  gap: 12px;
+}
+
+.regional-hint {
+  flex: 1 1 100%;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--medium-gray);
+  margin-top: 6px;
+}
+
+/* RESPONSIVO */
+@media (max-width: 768px) {
+  .regional-header {
+    flex-direction: column;
+  }
+
+  .regional-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .regional-buttons {
+    flex-direction: column;
+  }
+}
 
