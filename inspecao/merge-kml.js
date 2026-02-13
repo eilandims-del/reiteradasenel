@@ -368,3 +368,14 @@ $("btnGerarKml").addEventListener("click", async () => {
   );
   
 });
+function setBtnLoading(btn, loading, textDefault) {
+  if (!btn) return;
+  if (loading) {
+    btn.dataset.prev = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="ico">⏳</span> Processando...`;
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = btn.dataset.prev || textDefault;
+  }
+}

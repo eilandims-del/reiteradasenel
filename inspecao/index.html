@@ -5,146 +5,179 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Automação Reiteradas x Inspeção</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- ✅ usa o MESMO tema do site -->
+  <link rel="stylesheet" href="../css/styles.css">
+  
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #f4f6f9;
+    /* deixa o fundo/spacing igual ao app */
+    .main-content { padding-top: 18px; }
+  
+    .insp-grid{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 10px;
     }
-
-    header {
-      background: #2c3e50;
-      color: white;
-      padding: 20px;
-      text-align: center;
-      font-size: 20px;
-      font-weight: bold;
+  
+    .insp-item{
+      border: 1px solid rgba(0,0,0,0.10);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255,255,255,0.85);
     }
-
-    .container {
-      max-width: 900px;
-      margin: 30px auto;
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+  
+    .insp-head{ margin-bottom: 10px; }
+    .insp-title{
+      font-weight: 900;
+      color: var(--dark-gray);
+      margin-bottom: 4px;
     }
-
-    h2 {
-      margin-top: 0;
-      color: #2c3e50;
+    .insp-sub{
+      font-weight: 700;
+      color: var(--medium-gray);
+      font-size: .9rem;
     }
-
-    .row {
-      margin-bottom: 20px;
-    }
-
-    label {
-      font-weight: 600;
-      display: block;
-      margin-bottom: 6px;
-    }
-
-    input[type="file"] {
-      padding: 8px;
+  
+    .insp-file{
       width: 100%;
-    }
-
-    button {
-      padding: 12px 20px;
-      border: none;
-      border-radius: 6px;
-      font-weight: bold;
-      cursor: pointer;
-      margin-right: 10px;
-      transition: 0.2s;
-    }
-
-    #btnGerarPlanilha {
-      background: #2980b9;
-      color: white;
-    }
-
-    #btnGerarPlanilha:hover {
-      background: #1f6692;
-    }
-
-    #btnGerarKml {
-      background: #8e44ad;
-      color: white;
-    }
-
-    #btnGerarKml:hover {
-      background: #6c2e87;
-    }
-
-    button:disabled {
-      background: #ccc !important;
-      cursor: not-allowed;
-    }
-
-    .status {
-      background: #ecf0f1;
-      padding: 15px;
-      border-radius: 8px;
-      white-space: pre-wrap;
-      font-size: 14px;
-      margin-top: 20px;
-    }
-
-    .info {
-      background: #f8f9fa;
       padding: 10px;
-      border-radius: 6px;
+      border-radius: 12px;
+      border: 1px dashed rgba(0,0,0,0.18);
+      background: #fff;
+      font-weight: 700;
+    }
+  
+    .insp-actions{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+  
+    .insp-status{
+      margin-top: 14px;
+      border-top: 1px solid rgba(0,0,0,0.08);
+      padding-top: 12px;
+    }
+  
+    .insp-status-title{
+      font-weight: 900;
+      color: var(--dark-gray);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+  
+    .insp-status-box{
+      margin: 0;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,0.10);
+      background: rgba(0,0,0,0.04);
+      color: #111;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 13px;
-      color: #555;
+      white-space: pre-wrap;
+    }
+  
+    @media (max-width: 520px){
+      .insp-actions .btn{ width: 100%; justify-content: center; }
     }
   </style>
+  
 </head>
 
 <body>
 
-<header>
-  Sistema de Geração KML – Reiteradas x Inspeção
-</header>
+  <!-- Header no mesmo estilo do site -->
+  <header class="header">
+    <div class="container header-content">
+      <div class="header-left">
+        <img src="../assets/enel1.png" alt="ENEL Brasil" class="header-logo" />
+        <div class="header-text">
+          <h1 class="header-title">Campo de Inspeção</h1>
+          <p class="header-subtitle">Automação Reiteradas x Inspeção • Geração de KML</p>
+        </div>
+      </div>
 
-<div class="container">
-  <h2>Envio de Arquivos</h2>
-
-  <div class="row">
-    <label>1) Planilha INSPEÇÃO NORMAL</label>
-    <input type="file" id="fileInspecao" accept=".xlsx,.xls" />
-    <div class="info">
-      Lê: Coluna E (Instalacao_nova), H (Numero_OT), AP (DISPOSITIVO_PROTECAO)
+      <div class="header-actions">
+        <span class="btn btn-secondary btn-sm" style="cursor: default;">
+          <i class="fa-solid fa-shield-halved"></i> Local (sem armazenar)
+        </span>
+      </div>
     </div>
-  </div>
+  </header>
 
-  <div class="row">
-    <label>2) Planilha REITERADAS</label>
-    <input type="file" id="fileReiteradas" accept=".xlsx,.xls" />
-    <div class="info">
-      Lê: Coluna A (Elemento), C (ALIMENTADOR)
+  <main class="main-content">
+    <div class="container">
+
+      <section class="card">
+        <h2 class="section-title">
+          <i class="fas fa-upload"></i> Envio de Arquivos
+        </h2>
+
+        <div class="insp-grid">
+
+          <div class="insp-item">
+            <div class="insp-head">
+              <div class="insp-title">1) Planilha INSPEÇÃO NORMAL</div>
+              <div class="insp-sub">Lê: E (Instalacao_nova), H (Numero_OT), AP (DISPOSITIVO_PROTECAO)</div>
+            </div>
+            <input type="file" id="fileInspecao" accept=".xlsx,.xls" class="insp-file" />
+          </div>
+
+          <div class="insp-item">
+            <div class="insp-head">
+              <div class="insp-title">2) Planilha REITERADAS</div>
+              <div class="insp-sub">Lê: A (Elemento), C (ALIMENTADOR)</div>
+            </div>
+            <input type="file" id="fileReiteradas" accept=".xlsx,.xls" class="insp-file" />
+          </div>
+
+          <div class="insp-item">
+            <div class="insp-head">
+              <div class="insp-title">3) KML/KMZ Geral</div>
+              <div class="insp-sub">Base com todos os dispositivos (para coordenadas)</div>
+            </div>
+            <input type="file" id="fileKmlGeral" accept=".kml,.kmz" class="insp-file" />
+          </div>
+
+        </div>
+
+        <div class="insp-actions">
+          <button id="btnGerarPlanilha" class="btn btn-primary">
+            <i class="fas fa-file-excel"></i> GERAR PLANILHA
+          </button>
+
+          <button id="btnGerarKml" class="btn btn-secondary" disabled>
+            <i class="fas fa-earth-americas"></i> GERAR KML GOOGLE EARTH
+          </button>
+        </div>
+
+        <div class="insp-status">
+          <div class="insp-status-title">
+            <i class="fas fa-terminal"></i> Status
+          </div>
+          <pre class="insp-status-box" id="status">Aguardando arquivos...</pre>
+        </div>
+      </section>
+
     </div>
-  </div>
+  </main>
 
-  <div class="row">
-    <label>3) KML/KMZ Geral com todos dispositivos</label>
-    <input type="file" id="fileKmlGeral" accept=".kml,.kmz" />
-  </div>
+  <!-- FontAwesome (mesmo do site) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 
-  <div class="row">
-    <button id="btnGerarPlanilha">GERAR PLANILHA</button>
-    <button id="btnGerarKml" disabled>GERAR KML GOOGLE EARTH</button>
-  </div>
-
-  <div class="status" id="status">
-    Aguardando arquivos...
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
-<script type="module" src="./merge-kml.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+  <script type="module" src="./merge-kml.js"></script>
 
 </body>
+
 </html>
