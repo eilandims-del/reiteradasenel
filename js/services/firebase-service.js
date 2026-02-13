@@ -69,13 +69,32 @@ export class DataService {
   };
 
   static normalizeRegional(regional) {
-    const r = String(regional || "").trim().toUpperCase();
-    if (r === "CENTRO NORTE" || r === "CENTRO_NORTE" || r === "CENTRONORTE") return "CENTRO NORTE";
-    if (r === "ATLÂNTICO" || r === "ATLANTICO") return "ATLANTICO";
+    const r = String(regional || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\./g, "")   // remove pontos
+      .replace(/\s+/g, " "); // normaliza espaços
+  
+    // CENTRO NORTE
+    if (
+      r === "CENTRO NORTE" ||
+      r === "CENTRONORTE" ||
+      r === "C.NORTE" ||
+      r === "C NORTE"
+    ) return "CENTRO NORTE";
+  
+    // ATLANTICO
+    if (
+      r === "ATLANTICO" ||
+      r === "ATLÂNTICO"
+    ) return "ATLANTICO";
+  
+    // NORTE
     if (r === "NORTE") return "NORTE";
+  
     return "";
   }
-
+  
   static sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -84,13 +103,6 @@ export class DataService {
     // id local (sem gravar nada)
     return doc(collection(db, this.UPLOADS_COLLECTION)).id;
   }
-
-  /* =========================
-     SAVE DATA (com REGIONAL)
-  ========================= */
-/* =========================
-   SAVE DATA (com REGIONAL por LINHA ou por METADATA)
-========================= */
 /* =========================
    SAVE DATA (com REGIONAL por LINHA ou por ÁREA)
 ========================= */
