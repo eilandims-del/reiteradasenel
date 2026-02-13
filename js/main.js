@@ -553,3 +553,67 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+function openModalInspecao() {
+  const modal = document.getElementById('modalInspecao');
+  if (!modal) return;
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeModalInspecao() {
+  const modal = document.getElementById('modalInspecao');
+  if (!modal) return;
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+// 1) ligar no seu botão (ajuste o seletor)
+document.getElementById('btnCampoInspecao')?.addEventListener('click', openModalInspecao);
+
+// 2) fechar no X
+document.getElementById('modalInspecaoClose')?.addEventListener('click', closeModalInspecao);
+
+// 3) fechar no clique do fundo
+document.querySelector('#modalInspecao .modal-backdrop')?.addEventListener('click', closeModalInspecao);
+
+// 4) fechar no ESC
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModalInspecao();
+});
+/* =========================
+   MODAL CAMPO DE INSPEÇÃO
+========================= */
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('btnCampoInspecao');
+  const modal = document.getElementById('modalInspecao');
+
+  if (!btn || !modal) return;
+
+  const closeBtn = modal.querySelector('.modal-close');
+  const backdrop = modal.querySelector('.modal-backdrop');
+
+  function abrirModal() {
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden'; // trava scroll da página
+  }
+
+  function fecharModal() {
+    modal.classList.add('hidden');
+    document.body.style.overflow = ''; // libera scroll
+  }
+
+  btn.addEventListener('click', abrirModal);
+
+  closeBtn?.addEventListener('click', fecharModal);
+
+  backdrop?.addEventListener('click', fecharModal);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      fecharModal();
+    }
+  });
+});

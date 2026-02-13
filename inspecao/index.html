@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Automação Reiteradas x Inspeção</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f4f6f9;
+    }
+
+    header {
+      background: #2c3e50;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 30px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
+
+    .row {
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-weight: 600;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    input[type="file"] {
+      padding: 8px;
+      width: 100%;
+    }
+
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-right: 10px;
+      transition: 0.2s;
+    }
+
+    #btnGerarPlanilha {
+      background: #2980b9;
+      color: white;
+    }
+
+    #btnGerarPlanilha:hover {
+      background: #1f6692;
+    }
+
+    #btnGerarKml {
+      background: #8e44ad;
+      color: white;
+    }
+
+    #btnGerarKml:hover {
+      background: #6c2e87;
+    }
+
+    button:disabled {
+      background: #ccc !important;
+      cursor: not-allowed;
+    }
+
+    .status {
+      background: #ecf0f1;
+      padding: 15px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+
+    .info {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #555;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  Sistema de Geração KML – Reiteradas x Inspeção
+</header>
+
+<div class="container">
+  <h2>Envio de Arquivos</h2>
+
+  <div class="row">
+    <label>1) Planilha INSPEÇÃO NORMAL</label>
+    <input type="file" id="fileInspecao" accept=".xlsx,.xls" />
+    <div class="info">
+      Lê: Coluna E (Instalacao_nova), H (Numero_OT), AP (DISPOSITIVO_PROTECAO)
+    </div>
+  </div>
+
+  <div class="row">
+    <label>2) Planilha REITERADAS</label>
+    <input type="file" id="fileReiteradas" accept=".xlsx,.xls" />
+    <div class="info">
+      Lê: Coluna A (Elemento), C (ALIMENTADOR)
+    </div>
+  </div>
+
+  <div class="row">
+    <label>3) KML/KMZ Geral com todos dispositivos</label>
+    <input type="file" id="fileKmlGeral" accept=".kml,.kmz" />
+  </div>
+
+  <div class="row">
+    <button id="btnGerarPlanilha">GERAR PLANILHA</button>
+    <button id="btnGerarKml" disabled>GERAR KML GOOGLE EARTH</button>
+  </div>
+
+  <div class="status" id="status">
+    Aguardando arquivos...
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+<script type="module" src="./merge-kml.js"></script>
+
+</body>
+</html>

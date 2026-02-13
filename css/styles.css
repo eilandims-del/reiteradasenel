@@ -2408,3 +2408,70 @@ input:focus, select:focus{
 .estr-panel.is-collapsed .estr-toggle i{
   transform: rotate(180deg);
 }
+/* =========================
+   MODAL INSPEÇÃO (isolado)
+========================= */
+
+#modalInspecao.hidden { display: none; }
+
+#modalInspecao{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#modalInspecao .modal-backdrop{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+}
+
+#modalInspecao .modal-dialog{
+  position: relative;
+  width: min(1100px, calc(100vw - 24px));
+  height: min(760px, calc(100vh - 24px));
+  margin: 12px;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 18px 60px rgba(0,0,0,.35);
+  display: flex;
+  flex-direction: column;
+}
+
+#modalInspecao .modal-header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+  background: rgba(255,255,255,.95);
+}
+
+#modalInspecao .modal-title{
+  font-weight: 900;
+  font-family: Inter, system-ui, Arial;
+}
+
+#modalInspecao .modal-close{
+  border: 1px solid rgba(0,0,0,.15);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+#modalInspecao .modal-body{
+  flex: 1;
+}
+
+#modalInspecao iframe{
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
