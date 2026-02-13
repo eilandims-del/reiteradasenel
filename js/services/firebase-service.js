@@ -79,7 +79,7 @@ export class DataService {
     if (
       r === "CENTRO NORTE" ||
       r === "CENTRONORTE" ||
-      r === "C.NORTE" ||
+      r === "CNORTE" ||
       r === "C NORTE"
     ) return "CENTRO NORTE";
   
