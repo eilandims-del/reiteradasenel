@@ -72,74 +72,72 @@ FILE: index.html
   <main class="main-content">
     <div class="container">
 
-      <!-- ✅ Seleção de Regional (OBRIGATÓRIO) -->
 <!-- ✅ Seleção de Regional + Filtro de Data (unificado) -->
-<section class="filter-section card">
+      <section class="filter-section card">
 
-  <div class="regional-header">
+        <div class="regional-header">
 
-    <div class="regional-left">
-      <h2 class="section-title regional-title">
-        <i class="fas fa-layer-group"></i> Regional
-      </h2>
+          <div class="regional-left">
+            <h2 class="section-title regional-title">
+              <i class="fas fa-layer-group"></i> Regional
+            </h2>
 
-      <div class="regional-info">
-        Selecionada:
-        <span id="regionalAtualLabel">—</span>
+            <div class="regional-info">
+              Selecionada:
+              <span id="regionalAtualLabel">—</span>
 
-        <span
-          id="badgeOpenAlimentadores"
-          class="regional-badge"
-          title="Selecionar alimentadores"
-        >
-          <i class="fas fa-diagram-project"></i>
-          Alimentadores
-        </span>
-      </div>
-    </div>
+              <span
+                id="badgeOpenAlimentadores"
+                class="regional-badge"
+                title="Selecionar alimentadores"
+              >
+                <i class="fas fa-diagram-project"></i>
+                Alimentadores
+              </span>
+            </div>
+          </div>
 
-    <div class="regional-right">
-      <div class="date-mini-group">
-        <label>Início</label>
-        <input type="date" id="dataInicial" class="date-mini-input">
-      </div>
+          <div class="regional-right">
+            <div class="date-mini-group">
+              <label>Início</label>
+              <input type="date" id="dataInicial" class="date-mini-input">
+            </div>
 
-      <div class="date-mini-group">
-        <label>Fim</label>
-        <input type="date" id="dataFinal" class="date-mini-input">
-      </div>
+            <div class="date-mini-group">
+              <label>Fim</label>
+              <input type="date" id="dataFinal" class="date-mini-input">
+            </div>
 
-      <button id="aplicarFiltro" class="btn btn-primary btn-sm">
-        <i class="fas fa-check"></i> Aplicar
-      </button>
+            <button id="aplicarFiltro" class="btn btn-primary btn-sm">
+              <i class="fas fa-check"></i> Aplicar
+            </button>
 
-      <button id="limparFiltro" class="btn btn-secondary btn-sm">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
+            <button id="limparFiltro" class="btn btn-secondary btn-sm">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
 
-  </div>
+        </div>
 
-  <div class="filter-controls regional-buttons">
-    <button id="btnRegionalAtlantico" class="btn btn-secondary">
-      <i class="fas fa-location-dot"></i> ATLANTICO
-    </button>
+        <div class="filter-controls regional-buttons">
+          <button id="btnRegionalAtlantico" class="btn btn-secondary">
+            <i class="fas fa-location-dot"></i> ATLANTICO
+          </button>
 
-    <button id="btnRegionalNorte" class="btn btn-secondary">
-      <i class="fas fa-location-dot"></i> NORTE
-    </button>
+          <button id="btnRegionalNorte" class="btn btn-secondary">
+            <i class="fas fa-location-dot"></i> NORTE
+          </button>
 
-    <button id="btnRegionalCentroNorte" class="btn btn-secondary">
-      <i class="fas fa-location-dot"></i> CENTRO NORTE
-    </button>
+          <button id="btnRegionalCentroNorte" class="btn btn-secondary">
+            <i class="fas fa-location-dot"></i> CENTRO NORTE
+          </button>
 
-    <div class="regional-hint">
-      * Selecione uma <b>Regional</b>, depois <b>Período</b> e clique em <b>Aplicar</b>.
-    </div>
-  </div>
+          <div class="regional-hint">
+            * Selecione uma <b>Regional</b>, depois <b>Data</b> e <b>aplique</b>.
+          </div>
+        </div>
 
-</section>
-
+      </section>
 
       <section class="rankings-grid">
         <!-- Ranking por ELEMENTO -->
