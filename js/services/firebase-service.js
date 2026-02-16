@@ -68,32 +68,32 @@ export class DataService {
     CENTRO_NORTE: "CENTRO NORTE"
   };
 
-  static normalizeRegional(regional) {
-    const r = String(regional || "")
-      .trim()
-      .toUpperCase()
-      .replace(/\./g, "")   // remove pontos
-      .replace(/\s+/g, " "); // normaliza espaços
-  
-    // CENTRO NORTE
-    if (
-      r === "CENTRO NORTE" ||
-      r === "CENTRONORTE" ||
-      r === "CNORTE" ||
-      r === "C NORTE"
-    ) return "CENTRO NORTE";
-  
-    // ATLANTICO
-    if (
-      r === "ATLANTICO" ||
-      r === "ATLÂNTICO"
-    ) return "ATLANTICO";
-  
-    // NORTE
-    if (r === "NORTE") return "NORTE";
-  
-    return "";
-  }
+static normalizeRegional(regional) {
+  const r = String(regional || "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove acento
+    .replace(/\./g, "")             // remove pontos
+    .replace(/\s+/g, " ");          // normaliza espaços
+
+  // CENTRO NORTE (C.NORTE)
+  if (
+    r === "CENTRO NORTE" ||
+    r === "CENTRONORTE" ||
+    r === "CNORTE" ||
+    r === "C NORTE"
+  ) return "CENTRO NORTE";
+
+  // ATLANTICO
+  if (r === "ATLANTICO") return "ATLANTICO";
+
+  // NORTE
+  if (r === "NORTE") return "NORTE";
+
+  return "";
+}
+
   
   static sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -117,30 +117,48 @@ static async saveData(data, metadata = {}, progressCallback = null) {
     if (!Array.isArray(data)) throw new Error("data precisa ser um array");
 
     // --- helper: acha REGIONAL (ou ÁREA) na linha
-    const pickRegionalFromRow = (row) => {
-      if (!row || typeof row !== "object") return "";
+const pickRegionalFromRow = (row) => {
+  if (!row || typeof row !== "object") return "";
 
-      // 1) tenta REGIONAL direto
-      const direct =
-        row.REGIONAL ?? row.regional ?? row.Regional ?? row["REGIONAL "] ?? row["Regional "] ?? row["regional "];
-      const r1 = this.normalizeRegional(direct);
-      if (r1) return r1;
+  // tenta por chaves comuns
+  const candidates = [
+    row.REGIONAL, row.regional, row.Regional,
+    row.AREA, row["ÁREA"], row.area, row["AREA"]
+  ];
 
-      // 2) tenta pela coluna ÁREA (normalizada vira AREA no seu parser)
-      const area = row.AREA ?? row["ÁREA"] ?? row.area ?? row.Area ?? "";
-      const rArea = this.normalizeRegional(area);
-      if (rArea) return rArea;
+  for (const c of candidates) {
+    const rr = this.normalizeRegional(c);
+    if (rr) return rr;
+  }
 
-      // 3) varre as chaves e procura algo que normalize para “REGIONAL”
-      const keys = Object.keys(row);
-      const kFound = keys.find((k) => String(k).trim().toUpperCase().replace(/\./g, "") === "REGIONAL");
-      if (kFound != null) {
-        const r2 = this.normalizeRegional(row[kFound]);
-        if (r2) return r2;
-      }
+  // varre chaves por normalização (pega REGIONAL ou AREA/ÁREA)
+  const keys = Object.keys(row);
 
-      return "";
-    };
+  const findKey = (target) =>
+    keys.find((k) =>
+      String(k)
+        .trim()
+        .toUpperCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\./g, "") === target
+    );
+
+  const kRegional = findKey("REGIONAL");
+  if (kRegional != null) {
+    const rr = this.normalizeRegional(row[kRegional]);
+    if (rr) return rr;
+  }
+
+  const kArea = findKey("AREA"); // pega AREA e ÁREA
+  if (kArea != null) {
+    const rr = this.normalizeRegional(row[kArea]);
+    if (rr) return rr;
+  }
+
+  return "";
+};
+
 
     // validação: precisa existir regional em pelo menos um lugar
     if (!fallbackRegional) {
